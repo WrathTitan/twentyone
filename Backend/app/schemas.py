@@ -1,98 +1,33 @@
 from pydantic import BaseModel
 from pydantic.fields import Field
 from pydantic.networks import EmailStr
-from typing import List, Optional
+from typing import Optional
+from bson.json_util import ObjectId
 
 class User(BaseModel):
-    userID: int=Field(...)
+    userID: int = Field(...)
     name: Optional[str]
-    email: Optional[EmailStr]
+    email: EmailStr=Field(...)
     username: str=Field(...)
     password: str=Field(...)
-    listOfProjects: Optional[List[int]]
 
     class Config:
         arbitrary_types_allowed=True
         allow_population_by_field_name=True
-        schema_extra={
-            "example":{
-                "userID":101,
-                "name": "John Doe",
-                "email": "johndoe@email.com",
-                "username": "TheJohnDoe",
-                "password": "password@Super@Secure",
-                "listOfProjects": [45,43,22]
-            }
-        }
+        
 
-class UpdateUser(BaseModel):
-    name: Optional[str]
-    email: Optional[EmailStr]
-    listOfProjects: Optional[List[int]]
-
-    class Config:
-        arbitrary_types_allowed=True
-        allow_population_by_field_name=True
-        schema_extra={
-            "example":{
-                "name": "John Doe",
-                "email": "johndoe@email.com",
-                "listOfProjects": [45,43,22]
-            }
-        }
 
 class Project(BaseModel):
     projectID:int=Field(...)
     projectName:Optional[str]
     rawDataPath: Optional[str]
-    projectFolderPath: Optional[str]
-    belongsToUserID: int=Field(...)
-    listOfDataIDs: Optional[List[int]]
-    autoConfigFileLocation: Optional[str]
-    plotsPath: Optional[str]
-    projectType: Optional[str]
-    isAuto: Optional[bool]
-    target: Optional[str]
-
+    belongToUserID: Optional[str]
     class Config:
         arbitrary_types_allowed=True
         allow_population_by_field_name=True
-        schema_extra={
-            "example":{
-                "projectID": 45,
-                "projectName": "Boston Housing",
-                "rawDataPath": "/path/to/data/rawfile.csv",
-                "projectFolderPath": "/path/to/data",
-                "belongsToUserID": 101,
-                "listOfDataIDs": [2,4],
-                "autoConfigFileLocation": "path/to/auto/config/file.yaml",
-                "plotsPath": "path/to/plot/file.html",
-                "projectType":"regression",
-                "isAuto": "true",
-                "target": "target"
-            }
-        }
-
-class UpdateProject(BaseModel):
-    projectName:Optional[str]
-    rawDataPath: Optional[str]
-    projectFolderPath: Optional[str]
-    listOfDataIDs: Optional[List[int]]
-
-    class Config:
-        arbitrary_types_allowed=True
-        allow_population_by_field_name=True
-        schema_extra={
-            "example":{
-                "projectName": "Boston Housing",
-                "rawDataPath": "/path/to/data/rawfile.csv",
-                "projectFolderPath" : "path/to/data",
-                "listOfDataIDs": [2,4]
-            }
-        }
 
 class Data(BaseModel):
-    dataID: int=Field(...)
+    dataId: int=Field(...)
     cleanDataPath: Optional[str]
     target: Optional[str]
     belongsToUserID: int=Field(...)
@@ -101,323 +36,31 @@ class Data(BaseModel):
     class Config:
         arbitrary_types_allowed=True
         allow_population_by_field_name=True
-        schema_extra={
-            "example":{
-                "dataID": 2,
-                "cleanDataPath": "/path/to/data/cleanfile.csv",
-                "target": "TargetColumnName",
-                "belongsToUserID": 101,
-                "belongsToProjectID": 45
-            }
-        }
-
-class UpdateData(BaseModel):
-    cleanDataPath: Optional[str]
-    target: Optional[str]
-
-    class Config:
-        arbitrary_types_allowed=True
-        allow_population_by_field_name=True
-        schema_extra={
-            "example":{
-                "cleanDataPath": "/path/to/data/cleanfile.csv",
-                "target": "TargetColumnName"
-            }
-        }
-
 
 class Model(BaseModel):
-    modelID: int=Field(...)
     modelName: Optional[str]='Default Model'
     modelType: Optional[str]
-    pickleFolderPath: Optional[str]
-    pickleFilePath: Optional[str]
-    belongsToUserID: int=Field(...)
-    belongsToProjectID: int=Field(...)
-    belongsToDataID: Optional[int]
-
-    class Config:
-        allow_population_by_field_name=True
-        arbitrary_types_allowed=True
-        schema_extra={
-            "example":{
-                "modelID": 13,
-                "modelName": "Linear Regression",
-                "modelType": "Default Model",
-                "pickleFolderPath": "/path/to/pickel/data/",
-                "pickleFilePath": "/path/to/pickle/data/model.pkl",
-                "belongsToUserID": 101,
-                "belongsToProjectID": 45,
-                "belongsToDataID": 2
-            }
-        }
-
-class UpdateModel(BaseModel):
-    modelName: Optional[str]='Default Model'
-    modelType: Optional[str]
+    modelId: int
+    belongsToUserID: int
+    belongsToProjectID: int
+    belongsToDataID: int
     picklePath: Optional[str]
 
     class Config:
         allow_population_by_field_name=True
         arbitrary_types_allowed=True
-        schema_extra={
-            "example":{
-                "modelName": "Linear Regression",
-                "modelType": "Regression",
-                "picklePath": "/path/to/pickle/data/model.pkl"
-            }
-        }
 
 class Metrics(BaseModel):
-    belongsToUserID: int=Field(...)
-    belongsToProjectID: int=Field(...)
-    belongsToModelID: int=Field(...)
-    addressOfMetricsFile: str=Field(...)
+    belongsToUserID: int
+    belongsToProjectID: int
+    belongsToModelID: int
+    addressofYamlFile: str
 
     class Config:
         allow_population_by_field_name=True
         arbitrary_types_allowed=True
-        schema_extra={
-            "example":{
-                "belongsToUserID": 101,
-                "belongsToProjectID": 45,
-                "belongsToModelID": 13,
-                "addressOfMetricsFile": "/path/to/file/metrics.csv"
-            }
-        }
 
-class InferenceCollection(BaseModel):
-    newData: Optional[str]    #address
-    results: Optional[str]    #yaml file
-    belongsToUserID: int=Field(...)
-    belongsToProjectID: int=Field(...)
-    belongsToModelID: int=Field(...)
-
-    class Config:
-        allow_population_by_field_name=True
-        arbitrary_types_allowed=True
-        schema_extra={
-            "example":{
-                "newData": "/path/to/new/inference/data.csv",
-                "results": "/path/to/results",
-                "belongsToUserID": 101,
-                "belongsToProjectID": 45,
-                "belongsToModelID": 13
-            }
-        }
-
-class AutoFormData(BaseModel):
-    isauto:Optional[bool]
-    target:Optional[str]
-    modelnumber:Optional[int]
-    nulltype:Optional[str]
-    projectID: Optional[int]
-    userID: Optional[int]
-    clusteringType: Optional[str]
-    numClusters: Optional[int]
-
-    class Config:
-        arbitrary_types_allowed=True
-        allow_population_by_field_name=True
-        schema_extra={
-            "examples":{
-                "isauto":True,
-                "target":"TargetColumn",
-                "modelnumber":2,
-                "nulltype":"NA",
-                "projectID": 45,
-                "userID": 101,
-                "clusteringType": "kmeans",
-                "numClusters": "3"
-            }
-        }
-
-class TimeseriesFormData(BaseModel):
-    userID:int
-    projectID:int
-    target:str
-    dateColumn:str
-    frequency:str
-
-    class Config:
-        arbitrary_types_allowed=True
-        allow_population_by_field_name=True
-        schema_extra={
-            "examples":{
-                "userID": "101",
-                "projectID": "45",
-                "target": "TargetColumn",
-                "dateColumn": "DateColumn",
-                "frequency": "Frequency"
-            }
-        }
-
-class PreprocessJSONFormData(BaseModel):
-    raw_data_address: Optional[str]
-    date_format: Optional[str]
-    date_index: Optional[str]
-    frequency: Optional[str]
-    target_column_name: Optional[str]
-    drop_column_name: Optional[List[str]]
-    imputation_column_name: Optional[List[str]]
-    impution_type: Optional[List[str]]
-    mean_median_mode_values: Optional[List[int]] 
-    na_notation: Optional[List[str]]
-    scaling_column_name: Optional[List[str]]
-    scaling_type: Optional[List[str]]
-    scaling_vales: Optional[List[int]] 
-    encode_column_name: Optional[List]
-    encoding_type:Optional[List]
-    labels: Optional[List[str]] 
-    Remove_outlier: Optional[bool]
-    feature_selection: Optional[bool]
-    data_imbalance: Optional[bool]
-    train_test_split_ratio: Optional[int]
-    is_auto_preprocess: Optional[bool]
-    clean_data_address: Optional[str]
-    inference_clean_data_address: Optional[str]
-    userID: Optional[int]
-    projectID: Optional[int]
-
-    class Config:
-        arbitrary_types_allowed=True
-        allow_population_by_field_name=True
-        schema_extra={
-            "examples":{
-                "raw_data_address": "path/to/raw/data/file.csv",
-                "date_format": "%Y-%m-%d",
-                "date_index": "",
-                "frequency": "",
-                "target_column_name": "target",
-                "drop_column_name": [
-                    "column_name1",
-                    "column_name2",
-                    "column_name3"
-                ],
-                "imputation_column_name": [
-                    "column_name1",
-                    "column_name2",
-                    "column_name3"
-                ],
-                "impution_type": [
-                    "type1",
-                    "type2"
-                ],
-                "mean_median_mode_values": [
-                    0,
-                    0,
-                    0
-                ],
-                "na_notation": [
-                    "NaN"
-                ],
-                "scaling_column_name": [
-                    "age",
-                    "sex",
-                    "salery"
-                ],
-                "scaling_type": [
-                    "s -mi -ma",
-                    "n",
-                    "s"
-                ],
-                "scaling_values": [
-                    1,
-                    1
-                ],
-                "encode_column_name": [
-                    "encoded_column1"
-                ],
-                "encoding_type": [
-                    "encoding_type"
-                ],
-                "labels": [
-                    "label"
-                ],
-                "Remove_outlier": True,
-                "feature_selection": True,
-                "data_imbalance": False,
-                "train_test_split_ratio": 0.3,
-                "is_auto_preprocess": True,
-                "clean_data_address":"/path/to/clean/data.csv",
-                "userID": 101,
-                "projectID":45,
-                "inference_clean_data_address": "path/to/inference/data.csv"
-                }
-        }
-
-
-class Range(BaseModel):
-    min: Optional[int]=None
-    max: Optional[int]=None
-    num_samp: Optional[int]=None
-    type: Optional[str]=None
-    class Config:
-        arbitrary_types_allowed=True
-        allow_population_by_field_name=True
-        schema_extra={
-            "min": 10,
-            "max": 200,
-            "num_samp": 5
-        }
-
-class Hyper(BaseModel):
-    name: Optional[str]
-    value: Optional[str]=None      #Was Null - Changed to str
-    ischanged: Optional[bool]
-    type: Optional[str]         #Type can be either bool or number so front frontend we get a string that is either int or bool
-    options: Optional[List[str]]=None     #Was null, can be just one str or list of str
-    vary: Optional[bool]
-    range: Optional[Range]=None
-    class Config:
-        arbitrary_types_allowed=True
-        allow_population_by_field_name=True
-        schema_extra={
-            "name": "max_depth",
-            "value": None,
-            "ischanged": False,
-            "type": "int",
-            "options": None,
-            "vary": True,
-            "range": {
-                "min": 10,
-                "max": 200,
-                "num_samp": 5
-            }
-        }
-
-class ModelHyperParametersJSON(BaseModel):
-    name: Optional[str]
-    isSelected: Optional[bool]
-    type: Optional[str]
-    datatype: Optional[str]         #Potential error, saw a key with data_type instead of datatype. Use data_type everywhere
-    complexity: Optional[str]
-    hyper: Optional[List[Hyper]]=None
+class Inference(BaseModel):
+    newData: str    #address
+    results: str    #yaml file
     
-    class Config:
-        arbitrary_types_allowed=True
-        allow_population_by_field_name=True
-        schema_extra={
-            "examples":{
-                    "name": "DecisionTreeClassifier",
-                    "isSelected": True,
-                    "type": "Classification",
-                    "datatype": "Tabular",
-                    "complexity": "ML",
-                    "hyper": [
-                        {
-                            "name": "max_depth",
-                            "value": None,
-                            "ischanged": False,
-                            "type": "int",
-                            "options": None,
-                            "vary": True,
-                            "range": {
-                                "min": 10,
-                                "max": 200,
-                                "num_samp": 5
-                            }
-                        }
-                    ]
-                }
-        }
