@@ -1,10 +1,10 @@
+from app.allhelpers import ErrorResponseModel
+from app.schemas import User, UpdateUser
 from fastapi import APIRouter, Body, HTTPException
 from fastapi.encoders import jsonable_encoder
-from Backend.app.dbclass import Database
-from Backend.app.config import settings
-from Backend.app.schemas import User, UpdateUser
-from Backend.app.helpers.user_helper import userEntity, usersEntity
-from Backend.app.helpers.allhelpers import ErrorResponseModel, ResponseModel
+from app.dbclass import Database
+from app.config import settings
+from app.helpers.user_helper import userEntity, usersEntity, ResponseModel
 
 Project21Database=Database()
 Project21Database.initialise(settings.DB_NAME)
@@ -39,14 +39,13 @@ def insert_one_user(user: User=Body(...)):
 @user_router.put('/user/{id}')
 def update_one_user(id:int,updateUser: UpdateUser=Body(...)):
     updateUser={k:v for k,v in updateUser.dict().items() if v is not None}
-    result=Project21Database.find_one(settings.DB_COLLECTION_USER,{"userID":id})
-    if result:
-        try:
-            result=Project21Database.update_one(settings.DB_COLLECTION_USER,{"userID":id},{"$set":updateUser})
-            return ResponseModel(id,"Successfully Updated")
-        except:
-            return ErrorResponseModel("An Error Occured",404,"User could not be updated")
-    return ErrorResponseModel("An Error Occured",404,"User could not be updated")
+    try:
+        result=Project21Database.update_one(settings.DB_COLLECTION_USER,{"userID":id},{"$set":updateUser})
+        if result:
+            return ResponseModel(id,"Successfully Inserted")
+    except:
+        return ErrorResponseModel("An Error Occured",404,"User could not be updated")
+    return ResponseModel(id,"Successfully updated")
 
 @user_router.delete('/deleteuser/{id}')
 def delete_one_user(id:int):
