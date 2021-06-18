@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Body, HTTPException
 from fastapi.encoders import jsonable_encoder
-from Backend.app.dbclass import Database
-from Backend.app.config import settings
-from Backend.app.schemas import Project, UpdateProject
-from Backend.app.helpers.allhelpers import ErrorResponseModel, ResponseModel, serialiseDict, serialiseList
+from app.dbclass import Database
+from app.config import settings
+from app.schemas import Project, UpdateProject
+from app.helpers.project_helper import projectEntity, projectsEntity
+from app.helpers.allhelpers import ErrorResponseModel, ResponseModel
 
 Project21Database=Database()
 Project21Database.initialise(settings.DB_NAME)
@@ -13,7 +14,7 @@ project_router=APIRouter()
 @project_router.get('/projects')
 def get_all_projects():
     projects=[]
-    all_projects=serialiseList(Project21Database.find(settings.DB_COLLECTION_PROJECT,{}))
+    all_projects=projectsEntity(Project21Database.find(settings.DB_COLLECTION_PROJECT,{}))
     for project in all_projects:
         projects.append(project)
     return projects
@@ -21,7 +22,7 @@ def get_all_projects():
 @project_router.get('/project/{projectID}')
 def get_one_project(projectID:int):
     try:
-        project=serialiseDict(Project21Database.find_one(settings.DB_COLLECTION_PROJECT,{"projectID":projectID}))
+        project=projectEntity(Project21Database.find_one(settings.DB_COLLECTION_PROJECT,{"projectID":projectID}))
     except:
         return ErrorResponseModel("An Error Occured",404,"Project could not be found")
     return project
@@ -38,14 +39,14 @@ def insert_one_project(project: Project=Body(...)):
 @project_router.put('/project/{projectID}')
 def update_one_project(projectID:int,updateProject: UpdateProject=Body(...)):
     updateProject={k:v for k,v in updateProject.dict().items() if v is not None}
-    result=Project21Database.find_one(settings.DB_COLLECTION_PROJECT,{"projectID":projectID})
-    if result:
-        try:
-            result=Project21Database.update_one(settings.DB_COLLECTION_PROJECT,{"projectID":projectID},{"$set":updateProject})
+    try:
+        result=Project21Database.update_one(settings.DB_COLLECTION_PROJECT,{"projectID":projectID},{"$set":updateProject})
+        if result:
             return ResponseModel(projectID,"Successfully Updated")
-        except:
+        else:
             return ErrorResponseModel("An Error Occured",404,"Project could not be updated")
-    return ErrorResponseModel("An Error Occured",404,"Project could not be updated")
+    except:
+        return ErrorResponseModel("An Error Occured",404,"Project could not be updated")
 
 @project_router.delete('/deleteproject/{projectID}')
 def delete_one_project(projectID:int):
