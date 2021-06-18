@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Body, HTTPException
 from fastapi.encoders import jsonable_encoder
-from Backend.app.dbclass import Database
-from Backend.app.config import settings
-from Backend.app.schemas import Model, UpdateModel
-from Backend.app.helpers.allhelpers import ErrorResponseModel, ResponseModel, serialiseDict, serialiseList
+from app.dbclass import Database
+from app.config import settings
+from app.schemas import Model, UpdateModel
+from app.helpers.model_helper import modelEntity, modelsEntity
+from app.helpers.allhelpers import ErrorResponseModel, ResponseModel
 
 Project21Database=Database()
 Project21Database.initialise(settings.DB_NAME)
@@ -13,7 +14,7 @@ model_router=APIRouter()
 @model_router.get('/models')
 def get_all_models():
     models=[]
-    all_models=serialiseList(Project21Database.find(settings.DB_COLLECTION_MODEL,{}))
+    all_models=modelsEntity(Project21Database.find(settings.DB_COLLECTION_MODEL,{}))
     for data in all_models:
         models.append(data)
     return models
@@ -21,7 +22,7 @@ def get_all_models():
 @model_router.get('/model/{modelID}')
 def get_one_model(modelID:int):
     try:
-        model=serialiseDict(Project21Database.find_one(settings.DB_COLLECTION_MODEL,{"modelID":modelID}))
+        model=modelEntity(Project21Database.find_one(settings.DB_COLLECTION_MODEL,{"modelID":modelID}))
     except:
         return ErrorResponseModel("An Error Occured",404,"Model could not be found")
     return model
