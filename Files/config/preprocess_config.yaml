@@ -1,59 +1,35 @@
 # The address at which the user's uploaded raw data is saved.
-raw_data_address: ""
-
-# For the time series data.
-date_format: "%Y-%m-%d"
-date_index: ""
-frequency: ""
-
+raw_data_address:
 
 # User specified target column.
-target_column_name: 
-- ""
+target_column_name:
 
 
 # For droping empty rows and columns
-drop_column_name: 
-- ""
+- drop_column_name: ["none"]
+
 
 # For filling null values present in the dataset.(Imputation)
-imputation_column_name: 
-- ""
-impution_type: 
-- ""
+- imputation_column_name: ["none"]
+  impution_type: []
+  na_notation : np.NaN
 
-mean_median_mode_values:
-- ""
-
-na_notation : np.nan
 
 # For feature scaling.
-scaling_column_name: 
-- ""
-scaling_type: 
-- ""
-scaling_values:
-- ""
+- scaling_column_name: ["none"]
+  scaling_type: []
+
+
 
 # For feature scaling.
-encode_column_name: 
-- ""
-encoding_type: 
-- ""
-labels:
-- ""
-corr_col:
-- ""
-Remove_outlier: False
+- encode_column_name: ["none"]
+  encoding_type: []
 
-feature_selection: False
+- Remove_outlier: True
 
-data_imbalance: False
+- feature_engineering_and_selection: True
 
-split_ratio_test: 0.3
+- data_imbalance: True
 
-is_auto_preprocess: False
-
-clean_data_address:
-  
-inference_clean_data_address:
+- split_ratio_train: 70
+- split_ratio_test: 30
