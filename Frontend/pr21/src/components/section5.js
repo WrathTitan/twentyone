@@ -44,6 +44,10 @@ class Section5 extends Component {
         $(theFormItself).hide();
         var theFormItself2 = document.getElementById('form2');
         $(theFormItself2).show();
+        // var theFormItself3 = document.getElementById('section6');
+        // $(theFormItself3).show();
+        
+        
     }
 
     // handleChange = event => {
