@@ -1,124 +1,130 @@
-import shutil
 import numpy as np
 import pandas as pd
 
 # Handling missing data using-
+from sklearn.impute import SimpleImputer
 from sklearn.impute import KNNImputer
 
+# Scaling and Teansforming using- 
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import StandardScaler
+ 
 # Handling non-numeric data using-
 from sklearn.preprocessing import LabelEncoder
 from sklearn.preprocessing import OneHotEncoder 
 
-from yaml.loader import FullLoader
+from pycaret.classification import *
+from pycaret.regression import *
+# from pycaret.clustering import *
+# from pycaret.nlp import *
 import os
 import yaml
 from scipy import stats
-import random
 
-class InferencePreprocess:     
-    def inference_preprocess(self,config,folderLocation,inference_data_address):
-
-        with open(config) as f:
-            config_data= yaml.load(f,Loader=FullLoader) 
-  
-        df = pd.read_csv(inference_data_address)
-        
-        df.dropna(how='all', axis=1, inplace=True)
+class Preprocess:     
+    def inference_preprocess(self,config):
+        """
+        This function is for preprocessing the data when the user selects manual preprocessing.                     
+        """
+        config = open("preprocess_config.yaml", 'r')
+        config_data = yaml.safe_load(config)
 
         
-        df.fillna(df.dtypes.replace({'float64': 0.0, 'O': 'NULL'}), downcast='infer', inplace=True)
-
-        if config_data['drop_column_name']!=[] and config_data['drop_column_name'][0] == '':
-            del config_data['drop_column_name'][0]
+        df = pd.read_csv(config_data["inference_data"])
+               
+        def drop_NA(df):
+            # On calling this function it drops all the columns and rows which are compleatly null.
+            nan_value = config_data["na_notation"]
+            df.replace("", nan_value, inplace=True)
+            df = df.dropna(how='all', axis=1, inplace=True)
+            df = df.dropna(how='all', inplace=True)
             
-        if config_data['drop_column_name'] != []:
-            df=df.drop(config_data["drop_column_name"], axis = 1)
-                
+        if(config_data["drop_col_name"][0]!="none"):
+            df=df.drop(config_data["drop_col_name"], axis = 1)
+            drop_NA(df)
+        else:
+            drop_NA(df)
 
-        if config_data['imputation_column_name'] != [] and config_data['imputation_column_name'][0] == '':
-            del config_data['imputation_column_name'][0]
-        
-        if config_data['imputation_column_name']!= []:
+        # imputation
+        if(config_data["imputation_column_name"][0]!="none"):
             for index, column in enumerate(config_data["imputation_column_name"]):
-                if column not in config_data['drop_column_name']:
-                    if config_data["impution_type"][index] =='knn':
-                        df_value = df[[column]].values
-                        imputer = KNNImputer(n_neighbors = 4, weights = "uniform",missing_values = np.nan)
-                        df[[column]] = imputer.fit_transform(df_value)
-
-                    elif config_data["impution_type"][index] != 'knn':
-                        replace_value = config_data["mean_median_mode_values"][index] 
-                        df[column].replace(to_replace = np.nan, value = replace_value)
-        
-        if config_data['scaling_column_name']!=[] and config_data['scaling_column_name'][0] == '':
-            del config_data['scaling_column_name'][0]
-            
-        if config_data['scaling_column_name']!= []:
-            for index, column in enumerate(config_data["scaling_column_name"]):
-                if column not in config_data['drop_column_name']:
-                    scaling_type = config_data["scaling_type"][index]                
+                replace_value = config_data["mean_median_mode_values"][index] 
+                
+                df[column].replace(to_replace =[config_data["na_notation"]],value = replace_value)
+                
+                type = config_data["impution_type"][index] 
+                if type=='knn':
                     df_value = df[[column]].values
-
-                    if scaling_type == "normalization":
-                        mi = config_data['scaling_values'][index]['min']
-                        ma = config_data['scaling_values'][index]['max']
-                        df_std = (df_value - mi) / (ma - mi)
-                        scaled_value = df_std * (1 - 0)
-
-                    elif scaling_type == 'standarization':
-                        mi = config_data['scaling_values'][index]['min']
-                        mean = config_data['scaling_values'][index]['mean']
-                        ma = config_data['scaling_values'][index]['max']
-                        df_std = (df_value - mi) / (ma - mi)
-                        scaled_value = (df_value - mean) / df_std 
-
-                    df[[column]] = scaled_value
+                    imputer = KNNImputer(n_neighbors = 4, weights = "uniform",missing_values = config_data["na_notation"])
+                    df[[column]] = imputer.fit_transform(df_value)
+        else:
+            df.replace(to_replace =[config_data["na_notation"]],value =0)
             
-        if config_data['encode_column_name']!=[] and  config_data['encode_column_name'][0] == '':
-            del config_data['encode_column_name'][0]
-            del config_data['encoding_type'][0]
 
-        if config_data['encode_column_name'] != []:
+        #feature scaling
+        if(config_data["scaling_column_name"][0]!="none"):
+            for index, column in enumerate(config_data["scaling_column_name"]):
+                type = config_data["scaling_type"][index]                
+                df_value = df[[column]].values
+
+                if type == "normalization":
+                    scaler = MinMaxScaler()
+            
+                elif type == 'standarization':
+                    scaler = StandardScaler()
+                        
+                scaled_value =scaler.fit_transform(df_value)
+                df[[column]] = scaled_value
+                
+                
+        #### handling catogarical data
+        # encoding
+        # Under the following if block only the columns selected by the used will be encoded as choosed by the used. 
+        if(config_data["encode_column_name"][0] != "none"):
             for index, column in enumerate(config_data["encode_column_name"]):
-                if column not in config_data['drop_column_name'] and column != config_data['target_column_name']:
-                    encoding_type = config_data["encoding_type"][index]
+                type = config_data["encoding_type"][index]
                     
+                if type == "Label Encodeing":
+                    encoder = LabelEncoder()
+                    df[column] = encoder.fit_transform(df[column])
+
+                elif type == "One-Hot Encoding":
+                    encoder = OneHotEncoder(drop = 'first', sparse=False)
+                    df_encoded = pd.DataFrame (encoder.fit_transform(df[[column]]))
+                    df_encoded.columns = encoder.get_feature_names([column])
+                    df.drop([column] ,axis=1, inplace=True)
+                    df= pd.concat([df, df_encoded ], axis=1)
                     
-                    if encoding_type == "Label Encoding":
-                        for i in range(len(config_data['labels'])):
-                            df[column].astype(str)
-                            label = config_data['labels'][i]
-                            df = df.replace(label)
+        # Feature engineering & Feature Selection
+        ### Outlier detection & Removel
+        # We are removing the outliers if on the basis on z-score.
 
-                    elif encoding_type == "One-Hot Encoding":
-                        encoder = OneHotEncoder(sparse=False)
-                        df_encoded = pd.DataFrame (encoder.fit_transform(df[[column]]))
-                        df_encoded.columns = encoder.get_feature_names([column])
-                        df.drop([column] ,axis=1, inplace=True)
-                        df= pd.concat([df, df_encoded ], axis=1)
-                    
- 
-        # if config_data['encode_column_name'][0] == '':
-        #     del config_data['encode_column_name'][0]
-        
-        # if config_data['encode_column_name'] != []:
-        #     df=df.drop(config_data["corr_col"], axis = 1)
-        col_names=list(df.columns)
-        orig_col_names=config_data["final_columns"]
-        new_col=list(set(orig_col_names)-set(col_names))
-        print(new_col)
-        df[new_col]=0
+        if config_data["Remove_outlier"] == True:
+            z = np.abs(stats.zscore(df))
+            df = df[(z < 3).all(axis=1)]
+              
+        # Here we are selecting the column which are having more then 70 correlation.
+        if config_data["feature_selection"] == True:
+            col_corr = set()
+            corr_matrix = df.corr()
+            for i in range(len(corr_matrix.columns)):
+                    for j in range(i):
+                        if abs(corr_matrix.iloc[i, j]) > 0.70:
+                            col_corr.add(corr_matrix.columns[i])
+                                        
+            df = df.drop(col_corr,axis=1)
 
-        if config_data['target_column_name'] in df.columns:
-            df=df.drop(config_data["target_column_name"], axis = 1)
-            
-        ran=random.randint(100,999)
-        df.to_csv('inference_clean_data'+str(ran)+'.csv')
-        shutil.move('inference_clean_data'+str(ran)+'.csv',folderLocation)
-        inference_clean_data_address = os.path.abspath(os.path.join(folderLocation,'inference_clean_data'+str(ran)+'.csv'))
-        config_data['inference_clean_data_address'] = inference_clean_data_address
+            # with the following function we can select highly correlated features
+            # it will remove the first feature that is correlated with anything other feature
 
-        with open(config, 'w') as yaml_file:
+        # Droping the columns which are left behind and can cause problem at the time of model training.
+        for col_name in df.columns:
+            if df[col_name].dtype == 'object':
+                df=df.drop(col_name, axis = 1)
+
+        with open("preprocess_config.yaml", 'w') as yaml_file:
             yaml_file.write( yaml.dump(config_data, default_flow_style=False))
-        
-        return inference_clean_data_address
+
+        clean_data_address = os.getcwd()+"/clean_data.csv"
+        return clean_data_address
+    

@@ -51,12 +51,22 @@ class Preprocess:
 
         # imputation
         if(config_data["imputation_column_name"][0]!="none"):
+            strategy_values_list=[]
             for index, column in enumerate(config_data["imputation_column_name"]):
                 type = config_data["impution_type"][index] 
                 df_value = df[[column]].values
                 
-                if type == "mean" or type == "median" or type == "most_frequent":
-                    imputer = SimpleImputer(missing_values = config_data["na_notation"], strategy = type)
+                if type == "mean":
+                    imputer = SimpleImputer(missing_values = config_data["na_notation"], strategy = "mean")
+                    strategy_values_list.append(df[column].mean())
+                    
+                elif type == "median":
+                    imputer = SimpleImputer(missing_values = config_data["na_notation"], strategy = "median")
+                    strategy_values_list.append(df[column].median())
+                    
+                elif type == "most_frequent":
+                    imputer = SimpleImputer(missing_values = config_data["na_notation"], strategy = "most_frequent")
+                    strategy_values_list.append(df[column].mode())
 
                 elif type=='knn':
                     imputer = KNNImputer(n_neighbors = 4, weights = "uniform",missing_values = config_data["na_notation"])
@@ -64,10 +74,15 @@ class Preprocess:
                 df[[column]] = imputer.fit_transform(df_value)
             
             df.replace(to_replace =[config_data["na_notation"]],value =0)
+            if strategy_values_list != [] :
+                config_data['mean_median_mode_values'] = strategy_values_list
+           
             
         else:
+            ## Checkin the z scone and replace it with mean if z < 3 
             df.replace(to_replace =[config_data["na_notation"]],value =0)
-            
+            ####using others for object type data.
+             
 
         #feature scaling
         if(config_data["scaling_column_name"][0]!="none"):
@@ -110,10 +125,11 @@ class Preprocess:
             for col_name in df.columns:
                 if df[col_name].dtype == 'object':
                     objest_type_column_list.append(col_name)
-            
+                    config_data['encodeing_type'].extend(['One-Hot Encoding'])
+                    
             if objest_type_column_list != [] :
                 config_data['encode_column_name'] = objest_type_column_list
-                
+
                 encoder = OneHotEncoder(drop = 'first', sparse=False)
                 df_encoded = pd.DataFrame (encoder.fit_transform(df[objest_type_column_list]))
                 df_encoded.columns = encoder.get_feature_names([objest_type_column_list])
@@ -122,6 +138,7 @@ class Preprocess:
             
         # In this else block if the user does not choose any column to be encode we will do a cross validation.
         # to check and fix if any cloumn is having catogarical data.
+        #--------------------------------------------------------
         else:
             objest_type_column_list = []
             for col_name in df.columns:
@@ -134,6 +151,7 @@ class Preprocess:
             df_encoded.columns = encoder.get_feature_names([objest_type_column_list])
             df.drop([objest_type_column_list] ,axis=1, inplace=True)
             df= pd.concat([df, df_encoded ], axis=1)
+        #-=------------------------------------------------------------
 
         # Feature engineering & Feature Selection
         ### Outlier detection & Removel
@@ -149,7 +167,7 @@ class Preprocess:
             corr_matrix = df.corr()
             for i in range(len(corr_matrix.columns)):
                     for j in range(i):
-                        if abs(corr_matrix.iloc[i, j]) > 0.70:
+                        if abs(corr_matrix.iloc[i, j]) > 0.90:
                             col_corr.add(corr_matrix.columns[i])
                                         
             df = df.drop(col_corr,axis=1)
