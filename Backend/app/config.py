@@ -3,13 +3,16 @@ import os
 
 class CommonSettings(BaseSettings):
     APP_NAME: str = "Project 21"
-    DEBUG_MODE: bool=True           #Debug Mode
+    DEBUG_MODE: bool=False           #Debug Mode
 
 class ServerSettings(BaseSettings):
     HOST: str = "localhost"         #Backend server running on host
     PORT: int = 8000
     CORS_ORIGIN=[
     "http://localhost:3000",        #For Cross Origin Requests to be allowed as React runs on port 3000
+    "https://localhost:3000",
+    "http://localhost:5000",
+    "https://localhost:5000"
     ]
 
 class DatabaseSettings(BaseSettings):
@@ -28,6 +31,7 @@ class Settings(CommonSettings,ServerSettings,DatabaseSettings):
     CONFIG_YAML_FOLDER: str = os.path.abspath(os.path.join(os.getcwd(),'Files','config'))
     CONFIG_PREPROCESS_YAML_FILE: str =os.path.abspath(os.path.join(os.getcwd(),'Files','config','preprocess_config.yaml'))
     CONFIG_MODEL_YAML_FILE: str=os.path.abspath(os.path.join(os.getcwd(),'Files','config','model.yaml'))
+    DATA_TEMP_FOLDER: str = os.path.abspath(os.path.join(os.getcwd(),'Database','TempFiles'))
     pass
 
 settings=Settings()

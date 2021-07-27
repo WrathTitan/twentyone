@@ -21,7 +21,8 @@ class ProjectsSection5 extends Component {
             inferencefile: undefined,
             plot: "",
             countplot: 0,
-            inferenceTime:1,
+            inferenceTime: 1,
+            freq: "D"
         };
         this.updateData = this.updateData.bind(this);
     }
@@ -45,24 +46,10 @@ class ProjectsSection5 extends Component {
         this.setState({ data: "" });
 
     }
-    // handleRetrain = event => {
-    //     event.preventDefault();
-    //     var theFormItself = document.getElementById('section5');
-    //     $(theFormItself).hide();
-    //     var theFormItself2 = document.getElementById('form2');
-    //     $(theFormItself2).show();
-    // }
-
-    // handleChange = event => {
-    //     this.setState({
-    //         csvfile: event.target.files[0]
-    //     });
-    // };
     updateData(result) {
         this.setState({
             data: result.data
         });
-        // console.log(this.state.traindata);
     }
     handlemetric = event => {
         console.log(this.props.projectdetails)
@@ -74,18 +61,14 @@ class ProjectsSection5 extends Component {
         const FileDownload = require('js-file-download');
         axios.get('http://localhost:8000/getMetrics/' + projectid + "/" + modelid)
             .then((response) => {
-                // console.log(response)
-                // console.log(response.data);
                 Papa.parse(response.data, {
                     complete: this.updateData,
                     header: true
                 });
-                if (this.props.projectdetails.modelType === "clustering")
-                {
+                if (this.props.projectdetails.modelType === "clustering") {
                     FileDownload(response.data, 'metrics.csv');
                     alert("File is big so it is downloaded");
-                }// this.setState({data: response.data});
-                // console.log(this.state.data);
+                }
             });
 
 
@@ -93,10 +76,8 @@ class ProjectsSection5 extends Component {
     handlePlot = event => {
         const FileDownload = require('js-file-download');
         const projectid = this.props.projectdetails["projectID"];
-        // if (this.state.countplot === 0) {
         axios.get('http://localhost:8000/getPlots/' + projectid)
             .then((response) => {
-                // console.log(response);
                 this.setState({ plot: response.data });
                 var answer = window.confirm("Plots are ready and displayed. Want to Download in a file?");
                 if (answer) {
@@ -107,34 +88,24 @@ class ProjectsSection5 extends Component {
                 }
             });
         this.setState({ countplot: 1 })
-        // }
     }
 
-    // importCSV = () => {
-    //     const { csvfile } = this.state;
-    //     Papa.parse(csvfile, {
-    //         complete: this.updateData,
-    //         header: true
-    //     });
-    // };
 
-    // updateData(result) {
-    //     this.setState({
-    //         data: result.data
-    //     });
-    //     var data = result.data;
-    //     console.log(data);
-    // }
     handleInferenceChange = event => {
         this.setState({
             inferencefile: event.target.files[0]
         })
     }
+    handleFrequencyChange = event => {
+        this.setState({
+            freq: event.target.value
+        })
+    }
     handleTimeInferenceChange = event => {
         this.setState({
-            inferenceTime: event.target.files
+            inferenceTime: event.target.value
         })
-       
+
     }
     handleGetPrediction = event => {
         event.preventDefault();
@@ -155,13 +126,22 @@ class ProjectsSection5 extends Component {
 
         );
         const FileDownload = require('js-file-download');
-        axios.post('http://localhost:8000/doInference', formdata, { headers: { 'Accept': 'multipart/form-data', 'Content-Type': 'multipart/form-data' } })
-            .then((res) => {
-                console.log("Successful", res)
-                FileDownload(res.data, 'prediction.csv');
-                alert("Prediction is Ready and Downloaded");
-            },
-                (error) => { console.log(error) });
+        if (this.props.isauto === 'Auto')
+            axios.post('http://localhost:8000/doInference', formdata, { headers: { 'Accept': 'multipart/form-data', 'Content-Type': 'multipart/form-data' } })
+                .then((res) => {
+                    console.log("Successful Auto inference", res)
+                    FileDownload(res.data, 'prediction.csv');
+                    alert("Prediction is Ready and Downloaded");
+                },
+                    (error) => { console.log(error) });
+        else
+            axios.post('http://localhost:8000/doManualInference', formdata, { headers: { 'Accept': 'multipart/form-data', 'Content-Type': 'multipart/form-data' } })
+                .then((res) => {
+                    console.log("Successful Manual Inference", res)
+                    FileDownload(res.data, 'prediction.csv');
+                    alert("Prediction is Ready and Downloaded");
+                },
+                    (error) => { console.log(error) });
     }
     handleGetTimePrediction = event => {
         event.preventDefault();
@@ -181,15 +161,29 @@ class ProjectsSection5 extends Component {
             this.state.inferenceTime
 
         );
+        formdata.append(
+            "frequency",
+            this.state.freq
+
+        );
+        console.log(this.state.inferenceTime)
         const FileDownload = require('js-file-download');
-        axios.post('http://localhost:8000/doInference', formdata, { headers: { 'Accept': 'multipart/form-data', 'Content-Type': 'multipart/form-data' } })
+        axios.post('http://localhost:8000/doTimeseriesInference', formdata, { headers: { 'Accept': 'multipart/form-data', 'Content-Type': 'multipart/form-data' } })
             .then((res) => {
                 console.log("Successful", res)
-                FileDownload(res.data[0], 'prediction.csv');
-                FileDownload(res.data[1], 'predictionplot.html');
-                alert("Prediction and prediction plot is Ready and Downloaded");
+                FileDownload(res.data, 'prediction.csv');
+                alert("Prediction is Ready and Downloaded");
+                axios.post('http://localhost:8000/doTimeseriesInferencePlot', formdata, { headers: { 'Accept': 'multipart/form-data', 'Content-Type': 'multipart/form-data' } })
+                    .then((res) => {
+                        console.log("Successful", res)
+                        FileDownload(res.data, 'predictionplot.html');
+                        alert("Prediction plot is Ready and Downloaded");
+                    },
+                        (error) => { console.log(error) });
             },
                 (error) => { console.log(error) });
+
+
     }
 
     render() {
@@ -197,15 +191,9 @@ class ProjectsSection5 extends Component {
 
             <div className="section5 " id="projectsection5">
                 <div className="goback">
-                    <button className="backbtn btn btn-secondary" onClick={this.handleGoBack}  > &lArr; Models </button>
+                    <button className="backbtn btn btn-secondary" onClick={this.handleGoBack}  > &larr; Models </button>
 
                 </div>
-                {/* {this.props.showRetrain === false ? null :
-                    <div className="goback">
-                        <button className="backbtn" onClick={this.handleRetrain}  >Retrain</button>
-
-                    </div>
-                } */}
 
                 <div className="sec5heading">
                     <h1>Results (Model Number:  {this.props.currentmodel})</h1>
@@ -217,7 +205,7 @@ class ProjectsSection5 extends Component {
                     <ul className="nav nav-tabs" id="myTab" role="tablist">
                         <li className="nav-item" role="presentation">
                             <button className="nav-link tabbtn active" id="Metrics-tab" data-bs-toggle="tab" data-bs-target="#metrics" type="button" role="tab" aria-controls="metrics" aria-selected="true">
-                            {this.props.projectdetails.modelType==="clustering"?"Alloted Clusters":"Metrics"}</button>
+                                {this.props.projectdetails.modelType === "clustering" ? "Alloted Clusters" : "Metrics"}</button>
                         </li>
                         <li className="nav-item" role="presentation">
                             <button className="nav-link tabbtn " id="plot-tab" onClick={this.handlePlot} data-bs-toggle="tab" data-bs-target="#plot" type="button" role="tab" aria-controls="Plot" aria-selected="false">Plots</button>
@@ -289,38 +277,53 @@ class ProjectsSection5 extends Component {
                             <div className="container " id="form1">
                                 <form >
                                     <div className="createform">
-                                         {this.props.projectdetails.modelType!=="timeseries"?<div>
-                                        
-                                        <div className="row">
-                                            <div className="col-40">
-                                                <label htmlFor="Inference">Enter data to get Prediction</label>
-                                            </div>
-                                            <div className="col-60">
-                                                <input type="file" className="form-control" id="inference" onChange={this.handleInferenceChange} accept=".csv" name="inference"
-                                                    placeholder="enter training data in csv format" required />
-                                            </div>
-                                        </div>
+                                        {this.props.projectdetails.modelType !== "timeseries" ? <div>
 
-
-                                        <div>
-                                            <button type="submit" className="btn btn-secondary" onClick={this.handleGetPrediction} id="getresults" >Get Results</button>
-                                        </div>
-                                        </div>:
-                                        <div>
                                             <div className="row">
-                                            <div className="col-40">
-                                                <label htmlFor="Inferencetime">Enter Number of days you want to forecast</label>
+                                                <div className="col-40">
+                                                    <label htmlFor="Inference">Enter data to get Prediction</label>
+                                                </div>
+                                                <div className="col-60">
+                                                    <input type="file" className="form-control" id="inference" onChange={this.handleInferenceChange} accept=".csv" name="inference"
+                                                        placeholder="enter training data in csv format" required />
+                                                </div>
                                             </div>
-                                            <div className="col-60">
-                                                <input type="number" className="form-control" id="inferencetime" onChange={this.handleTimeInferenceChange} name="inferencetime"
-                                                    placeholder="Enter number of future days for prediction" required />
-                                            </div>
-                                        </div>
 
 
-                                        <div>
-                                            <button type="submit" className="btn btn-secondary" onClick={this.handleGetTimePrediction} id="getresultstime" >Get Results</button>
-                                        </div>
+                                            <div>
+                                                <button type="submit" className="btn btn-secondary" onClick={this.handleGetPrediction} id="getresults" >Get Results</button>
+                                            </div>
+                                        </div> :
+                                            <div>
+                                                <div className="row">
+                                                    <div className="col-40">
+                                                        <label htmlFor="Inferencetime">Enter Periods you want to forecast</label>
+                                                    </div>
+                                                    <div className="col-60">
+                                                        <input type="number" className="form-control" id="inferencetime" onChange={this.handleTimeInferenceChange} name="inferencetime"
+                                                            placeholder="Enter number of future days for prediction" required />
+                                                    </div>
+                                                </div>
+                                                <div className="row">
+                                                    <div className="col-40">
+                                                        <label htmlFor="Frequency">What is frequency of period? <span className="ibtn">i <span id="idesc">Is your period daily or monthly and so on</span></span></label>
+                                                    </div>
+                                                    <div className="col-60 ">
+                                                        <select name="Frequency" id="Frequency" value={this.state.frequency} onChange={this.handleFrequencyChange}>
+                                                            <option value="D">Daily</option>
+                                                            <option value="W">Weekly</option>
+                                                            <option value="M">Monthly</option>
+                                                            <option value="Q">Quaterly</option>
+                                                            <option value="Y">Yearly</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+
+
+                                                <div>
+                                                    <button type="submit" className="btn btn-secondary" onClick={this.handleGetTimePrediction} id="getresultstime" >Get Results</button>
+                                                </div>
+
                                             </div>
                                         }
                                     </div>

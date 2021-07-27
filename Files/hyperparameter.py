@@ -1,4 +1,5 @@
 import yaml
+import os
 from yaml.loader import FullLoader
 import numpy as np
 import pandas as pd
@@ -6,6 +7,7 @@ import json
 import pickle
 import pandas as pd
 from .libraries import *
+import sys
 from Files.metrics import Metrics as met
 class hyperparameter:
     def optimize(model_str,modelname,userinputconfig,data,dataconfig,target_column):
@@ -56,14 +58,18 @@ class hyperparameter:
                             if hyper["type"]=="option":
                                 params[hyper["name"]]=hyper["options"]
         model=eval(model_str)
-        clf=RandomizedSearchCV(model, params,verbose=10)
+        sys.stdout=open("logs.log","a+")
+        clf=RandomizedSearchCV(model, params,verbose=51,n_jobs=-1)
         x_train,x_test,y_train,y_test=train_test_split(xdata,ydata,test_size=0.2)
         print("working on "+ modelname)
         clf.fit(x_train,y_train)
         print("model completed for " + modelname)
-        picklepath=os.path.join(dataconfig["location"],(str(modelname) +".pkl"))
+        
+        location=os.path.join(dataconfig["location"],str(dataconfig["id"])+"_model")
+        picklepath=os.path.join(location,(str(modelname) +".pkl"))
         with open(picklepath,"wb") as f:
             pickle.dump(clf,f)
+            
         prediction=clf.predict(x_test)
         metricsrow=met.calculate_metrics(modelname,model_type,prediction,y_test)
         return metricsrow

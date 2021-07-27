@@ -11,6 +11,7 @@ import Section4 from './section4.js';
 import Section7 from './section7.js';
 // import Section5 from './section5.js';
 // import Section6 from './section6.js';
+import ShowdataModal from './showdataModal.js';
 import Papa from 'papaparse';
 
 class Home extends Component {
@@ -44,6 +45,9 @@ class Home extends Component {
             dateColumn: '',
             automanualpreprocess: false,
             modelForm: "",
+            numClusters: 4,
+            modalShow: false,
+            openWebSocketConnection: false,
         }
         this.updateData = this.updateData.bind(this);
     }
@@ -53,6 +57,20 @@ class Home extends Component {
         })
     }
     handleTrainChange = event => {
+        const formdata = new FormData();
+        formdata.append(
+            "train",
+            event.target.files[0]
+        );
+        axios.post('http://localhost:8000/convertFile', formdata, { headers: { 'Accept': 'multipart/form-data', 'Content-Type': 'multipart/form-data' } })
+            .then((response) => {
+                console.log("Successful1", response);
+                Papa.parse(response.data, {
+                    complete: this.updateData,
+                    header: true
+                })
+            },
+                (error) => { console.log(error) });
         this.setState({
             train: event.target.files[0]
         })
@@ -62,7 +80,7 @@ class Home extends Component {
         this.setState({
             traindata: result.data
         });
-        // console.log(this.state.traindata);
+        console.log(this.state.traindata);
     }
     handleMtypeChange = event => {
         this.setState({
@@ -85,11 +103,11 @@ class Home extends Component {
             var theFormItself6 = document.getElementById('form6');
             $(theFormItself6).show();
         }
-        const { train } = this.state;
-        Papa.parse(train, {
-            complete: this.updateData,
-            header: true
-        });
+        // const { train } = this.state;
+        // Papa.parse(train, {
+        //     complete: this.updateData,
+        //     header: true
+        // });
         const formdata = new FormData();
         formdata.append(
             "userID",
@@ -111,7 +129,8 @@ class Home extends Component {
             this.state.train
         );
 
-        // console.log(formdata.getAll('train'))
+
+        // console.log(this.state.traindata)
 
         axios.post('http://localhost:8000/create', formdata, { headers: { 'Accept': 'multipart/form-data', 'Content-Type': 'multipart/form-data' } })
             .then((res) => {
@@ -150,12 +169,10 @@ class Home extends Component {
         var theFormItself2 = document.getElementById('form4');
         $(theFormItself2).show();
     }
-    handleModelForm= (value) => event => {
+    handleModelForm = (val) => {
         this.setState({
-            modelForm: value
+            modelForm: val
         })
-        console.log(value)
-
     }
     handleTargetChange = event => {
         this.setState({
@@ -183,6 +200,11 @@ class Home extends Component {
             clusteringType: event.target.value
         })
     }
+    handleCLusterNumberChange = event => {
+        this.setState({
+            numClusters: event.target.value
+        })
+    }
     handleNullTypeChange = event => {
         this.setState({
             nulltype: event.target.value
@@ -190,122 +212,143 @@ class Home extends Component {
     }
     handleSubmit2 = event => {
         event.preventDefault();
-        var theFormItself = document.getElementById('form3');
-        $(theFormItself).hide();
-        var theFormItself2 = document.getElementById('sec1heading');
-        $(theFormItself2).hide();
-        var theFormItself3 = document.getElementById('sec1heading2');
-        $(theFormItself3).show();
-        var theFormItself4 = document.getElementById('loader');
-        $(theFormItself4).show();
-        this.setState({
-            modeldetail: {
-                "Successful": "False",
-                "dataID": 0,
-                "modelID": 0,
-                "projectID": 0,
-                "userID": 0
-            },
-        })
-        let userID = this.state.projectdetail["userID"]
-        let projectID = this.state.projectdetail["projectID"]
-        let isauto = this.state.auto
-        let target = this.state.target
-        if (target === '') {
+        setTimeout(() => {
             this.setState({
-                target: Object.keys(this.state.traindata[0])[0]
+                auto: true
             })
-            target = Object.keys(this.state.traindata[0])[0]
-        }
-        let modelnumber = this.state.modelnum
-        let nulltype = this.state.nulltype
-        let clusteringType = this.state.clusteringType
-        let data = { userID, projectID, isauto, target, modelnumber, nulltype, clusteringType }
-        console.log(JSON.stringify(data))
-
-        axios.post('http://localhost:8000/auto', JSON.stringify(data))
-            .then(res => {
-                console.log("Successful2", res)
+            event.preventDefault();
+            var theFormItself = document.getElementById('form3');
+            $(theFormItself).hide();
+            var theFormItself2 = document.getElementById('sec1heading');
+            $(theFormItself2).hide();
+            var theFormItself3 = document.getElementById('sec1heading2');
+            $(theFormItself3).show();
+            var theFormItself4 = document.getElementById('loader');
+            $(theFormItself4).show();
+            this.setState({
+                modeldetail: {
+                    "Successful": "False",
+                    "dataID": 0,
+                    "modelID": 0,
+                    "projectID": 0,
+                    "userID": 0
+                },
+            })
+            let userID = this.state.projectdetail["userID"]
+            let projectID = this.state.projectdetail["projectID"]
+            let isauto = this.state.auto
+            let target = this.state.target
+            if (target === '') {
                 this.setState({
-                    modeldetail: res.data
+                    target: Object.keys(this.state.traindata[0])[0]
                 })
-                console.log(this.state.modeldetail)
-            },
-                (error) => { console.log(error) });
+                target = Object.keys(this.state.traindata[0])[0]
+            }
+            let modelnumber = this.state.modelnum
+            let nulltype = this.state.nulltype
+            let clusteringType = this.state.clusteringType
+            let numClusters = this.state.numClusters
+            let data = { userID, projectID, isauto, target, modelnumber, nulltype, clusteringType, numClusters }
+            console.log(JSON.stringify(data))
 
+            axios.post('http://localhost:8000/auto', JSON.stringify(data))
+                .then(res => {
+                    console.log("Successful2", res)
+                    this.setState({
+                        modeldetail: res.data
+                    })
+                    console.log(this.state.modeldetail)
+                    this.setState({
+                        openWebSocketConnection: false
+                    })
+                },
+                    (error) => { console.log(error) });
+
+        }
+            , 100);
+        setTimeout(() => {
+            this.setState({
+                openWebSocketConnection: true
+            })
+        }, 1000);
 
     }
+
+
     handleSubmitTime = event => {
         event.preventDefault();
-        var theFormItself = document.getElementById('form6');
-        $(theFormItself).hide();
-        var theFormItself2 = document.getElementById('sec1heading');
-        $(theFormItself2).hide();
-        var theFormItself3 = document.getElementById('sec1heading2');
-        $(theFormItself3).show();
-        var theFormItself4 = document.getElementById('loader');
-        $(theFormItself4).show();
-        this.setState({
-            modeldetail: {
-                "Successful": "False",
-                "dataID": 0,
-                "modelID": 0,
-                "projectID": 0,
-                "userID": 0
-            },
-        })
-        let userID = this.state.projectdetail["userID"]
-        let projectID = this.state.projectdetail["projectID"]
-        let target = this.state.target
-        let dateColumn = this.state.dateColumn
-        let frequency = this.state.frequency
-        if (target === '') {
+        setTimeout(() => {
+            var theFormItself = document.getElementById('form6');
+            $(theFormItself).hide();
+            var theFormItself2 = document.getElementById('sec1heading');
+            $(theFormItself2).hide();
+            var theFormItself3 = document.getElementById('sec1heading2');
+            $(theFormItself3).show();
+            var theFormItself4 = document.getElementById('loader');
+            $(theFormItself4).show();
             this.setState({
-                target: Object.keys(this.state.traindata[0])[0]
+                modeldetail: {
+                    "Successful": "False",
+                    "dataID": 0,
+                    "modelID": 0,
+                    "projectID": 0,
+                    "userID": 0
+                },
             })
-            target = Object.keys(this.state.traindata[0])[0]
-        }
-        console.log(dateColumn)
-        if (dateColumn === '') {
-            this.setState({
-                dateColumn: Object.keys(this.state.traindata[0])[0]
-            })
-            dateColumn = Object.keys(this.state.traindata[0])[0]
-        }
-        let data = { userID, projectID, target, dateColumn, frequency }
-        console.log(JSON.stringify(data))
-
-        axios.post('http://localhost:8000/timeseries', JSON.stringify(data))
-            .then(res => {
-                console.log("SuccessfulTime", res)
+            let userID = this.state.projectdetail["userID"]
+            let projectID = this.state.projectdetail["projectID"]
+            let target = this.state.target
+            let dateColumn = this.state.dateColumn
+            let frequency = this.state.frequency
+            if (target === '') {
                 this.setState({
-                    modeldetail: res.data
+                    target: Object.keys(this.state.traindata[0])[0]
                 })
-                console.log(this.state.modeldetail)
-            },
-                (error) => { console.log(error) });
+                target = Object.keys(this.state.traindata[0])[0]
+            }
+            console.log(dateColumn)
+            if (dateColumn === '') {
+                this.setState({
+                    dateColumn: Object.keys(this.state.traindata[0])[0]
+                })
+                dateColumn = Object.keys(this.state.traindata[0])[0]
+            }
+            let data = { userID, projectID, target, dateColumn, frequency }
+            console.log(JSON.stringify(data))
 
-
-
+            axios.post('http://localhost:8000/timeseries', JSON.stringify(data))
+                .then(res => {
+                    console.log("SuccessfulTime", res)
+                    this.setState({
+                        modeldetail: res.data
+                    })
+                    console.log(this.state.modeldetail)
+                    this.setState({
+                        openWebSocketConnection: false
+                    })
+                },
+                    (error) => { console.log(error) });
+        }, 100);
+        setTimeout(() => {
+            this.setState({
+                openWebSocketConnection: true
+            })
+        }, 1000);
     }
-
+    handleSocketConnection = event => {
+        this.setState({
+            openWebSocketConnection: !this.state.openWebSocketConnection
+        })
+    }
     handleCurrentModel = (val) => {
         this.setState({
             currentmodel: val
         })
     }
-    handleAutoPreprocess =(val) => {
-        var theFormItself = document.getElementById('preprocesstable');
-        $(theFormItself).toggle();
+    handleManualModelDetails = (res) => {
         this.setState({
-            automanualpreprocess: !this.state.automanualpreprocess
+            modeldetail: res
         })
-
-    }
-    handleAutoModelSelect() {
-        var theFormItself = document.getElementById('modellist');
-        $(theFormItself).toggle();
-
     }
     handleGoForm2() {
         var theFormItself = document.getElementById('form3');
@@ -318,36 +361,43 @@ class Home extends Component {
         $(theFormItself2).show();
 
     }
+    handleSampleData = event => {
+        this.setState({
+            modalShow: true
+        })
+    }
     handleNewProject() {
-        var theFormItself = document.getElementById('form2');
-        $(theFormItself).hide();
-        var theFormItself2 = document.getElementById('form3');
-        $(theFormItself2).hide();
-        var theFormItself3 = document.getElementById('form4');
-        $(theFormItself3).hide();
-        var theFormItself4 = document.getElementById('form5');
-        $(theFormItself4).hide();
-        var theFormItself5 = document.getElementById('loader');
-        $(theFormItself5).hide();
-        var theFormItself6 = document.getElementById('section6');
-        $(theFormItself6).hide();
-        var theFormItself7 = document.getElementById('section5');
-        $(theFormItself7).hide()
-        var theFormItself9 = document.getElementById('form6');
-        $(theFormItself9).hide();
-        var theFormItself8 = document.getElementById('form1');
-        $(theFormItself8).show();
+        window.location.reload();
+        // var theFormItself = document.getElementById('form2');
+        // $(theFormItself).hide();
+        // var theFormItself2 = document.getElementById('form3');
+        // $(theFormItself2).hide();
+        // var theFormItself3 = document.getElementById('form4');
+        // $(theFormItself3).hide();
+        // var theFormItself4 = document.getElementById('form5');
+        // $(theFormItself4).hide();
+        // var theFormItself5 = document.getElementById('loader');
+        // $(theFormItself5).hide();
+        // var theFormItself6 = document.getElementById('section6');
+        // $(theFormItself6).hide();
+        // var theFormItself7 = document.getElementById('section5');
+        // $(theFormItself7).hide()
+        // var theFormItself9 = document.getElementById('form6');
+        // $(theFormItself9).hide();
+        // var theFormItself8 = document.getElementById('form1');
+        // $(theFormItself8).show();
 
     }
 
     render() {
         return (
             <div>
+
                 {/* ************************************************************************************************************************ */}
 
                 {/* Section1 */}
                 <Section1 />
-
+                {/* <showdataModal/> */}
                 {/* ************************************************************************************************************************ */}
                 {/* Section2  */}
                 <div className="section2" id="section2">
@@ -355,13 +405,15 @@ class Home extends Component {
 
                     </div>
                     <div className="createpagebox " id="sec1heading">
-                        <h1 className="">Start your project  <button className="btn btn-primary  sec1startbtn " onClick={this.handleNewProject}  >Start New Project </button>
-                       
-                           </h1>
-                          
+                        <button className="btn btn-primary  sec1startbtn " onClick={this.handleNewProject}  >Start New Project </button>
+                        <h1 >Start your project </h1>
+
                     </div>
                     <div className="createpagebox " id="sec1heading2">
+                        <button className="btn btn-primary  sec1startbtn " onClick={this.handleNewProject}  >Start New Project </button>
+
                         <h1>TwentyOne Results</h1>
+
                         {/* <p>" Just fill relevant feeds and select few choices and you are good to go"</p> */}
                     </div>
 
@@ -384,13 +436,13 @@ class Home extends Component {
                                         <label htmlFor="train">Enter training data <span className="ibtn">i <span id="idesc">Enter the data on which you want to train your model</span></span></label>
                                     </div>
                                     <div className="col-60">
-                                        <input type="file" className="form-control" id="train" onChange={this.handleTrainChange} accept=".csv" name="train"
+                                        <input type="file" className="form-control" id="train" onChange={this.handleTrainChange} accept=".csv ,.json, .xlsx" name="train"
                                             placeholder="enter training data in csv format" required />
                                     </div>
                                 </div>
                                 <div className="row">
                                     <div className="col-40">
-                                        <label htmlFor="type">Which type of data is it? <span className="ibtn">i <span id="idesc">Genrally if no. of classes less than 10 for target its Classification</span></span></label>
+                                        <label htmlFor="type">Which type of data is it? <span className="ibtn">i <span id="idesc">Generally if no. of classes less than 10 for target its Classification</span></span></label>
                                     </div>
                                     <div className="col-60 ">
                                         <select name="mtype" id="modeltype" value={this.state.mtype} onChange={this.handleMtypeChange}>
@@ -442,10 +494,17 @@ class Home extends Component {
                             </section>
                         </div>
                     </div>
+
                     {/* form3 */}
                     <div className="container" id="form3">
                         <div className="goback">
-                            <button className="btn btn-primary backbtn " onClick={this.handleGoForm2}  > Go Back </button>
+                            <button className="btn btn-primary backbtn " onClick={this.handleGoForm2}  > &larr; Back </button>
+                            <button className="btn btn-primary sampleData" id="sampleData" onClick={this.handleSampleData}>See Sample Data</button>
+                            < ShowdataModal
+                                show={this.state.modalShow}
+                                onHide={() => this.setState({ modalShow: false })}
+                                rawdata={this.state.traindata}
+                            />
                         </div>
                         <form onSubmit={this.handleSubmit2}>
                             <div className="createform">
@@ -475,12 +534,26 @@ class Home extends Component {
                                                 <select name="clusteringType" id="clusteringType" value={this.state.clusteringType} onChange={this.handleClusteringTypeChange}>
                                                     <option value="kmeans">K-Means</option>
                                                     <option value="kmodes">K-Modes</option>
-                                                    <option value="dbscan">DBSCAN</option>
+                                                    <option value="dbscan">Density-Based Spatial Clustering</option>
+                                                    <option value="birch">Birch Clustering</option>
+                                                    <option value="optics">OPTICS Clustering</option>
+                                                    <option value="hclust"> Agglomerative Clustering</option>
+                                                    <option value="meanshift">Mean shift Clustering</option>
+                                                    <option value="ap">Affinity Propagation</option>
                                                 </select>
 
                                             </div>
                                         </div>
+                                        <div className="row">
+                                            <div className="col-40">
+                                                <label htmlFor="num_clusters">Number of clusters <span className="ibtn">i <span id="idesc">K=4 works good most of times</span></span></label>
+                                            </div>
+                                            <div className="col-60" >
+                                                <input type="number" id="num_clusters" name="num_clusters" onChange={this.handleCLusterNumberChange} placeholder="Enter K" />
+                                            </div>
+                                        </div>
                                     </div>
+
                                 }
 
                                 {/* <div className="row">
@@ -501,13 +574,22 @@ class Home extends Component {
                                 </div> */}
 
                                 <div>
-                                    <button type="submit" className="btn btn-secondary" id="trainnow" >Train Now</button>
+                                    <button type="submit" className="btn btn-secondary " id="trainnow" >Train Now</button>
+
                                 </div>
                             </div>
                         </form>
                     </div>
                     {/* loader */}
-                    <Result modelnum={this.state.modelnum} currentmodel={this.state.currentmodel} projectdetail={this.state.modeldetail} handler={this.handleCurrentModel} projectname={this.state.projectname} isauto={this.state.isauto} mtype={this.state.mtype} />
+                    <Result
+                        modelnum={this.state.modelnum}
+                        currentmodel={this.state.currentmodel}
+                        projectdetail={this.state.modeldetail}
+                        handler={this.handleCurrentModel}
+                        projectname={this.state.projectname}
+                        isauto={this.state.isauto}
+                        mtype={this.state.mtype}
+                        openWebSocketConnection={this.state.openWebSocketConnection} />
                     {/* ************************************************************************************************************************ */}
 
                     {/* form 4 for manual preprocessing */}
@@ -517,13 +599,13 @@ class Home extends Component {
 
                         </div>
                         <div className="PreprocessForm">
-                            <div className="autocheckbox">
+                            {/* <div className="autocheckbox">
                                 <input type="checkbox" id="autopreprocess" onClick={this.handleAutoPreprocess} name="autopreprocess" />
                                 <label htmlFor="autopreprocess"> Auto Pre-process</label>
                             </div>
                             <h1>Pre-process</h1>
-                            <p>Each Column can be processed differently as required</p>
-                            <Preprocess rawdata={this.state.traindata} proprocessForm={this.state.preprocessForm} automanualpreprocess={this.state.automanualpreprocess} handleModelForm={this.handleModelForm} projectdetail={this.state.projectdetail}/>
+                            <p>Each Column can be processed differently as required</p> */}
+                            <Preprocess rawdata={this.state.traindata} proprocessForm={this.state.preprocessForm} automanualpreprocess={this.state.automanualpreprocess} handleModelForm={this.handleModelForm} projectdetail={this.state.projectdetail} />
                         </div>
                     </div>
                     {/* form 5 for model and hypeparameters selection*/}
@@ -532,18 +614,25 @@ class Home extends Component {
                             <button className="btn btn-primary backbtn" onClick={this.handleGoForm2}  > Go Back </button>
                         </div>
                         <div className="Modelselection">
-                            <div className="autocheckbox">
+                            {/* <div className="autocheckbox">
                                 <input type="checkbox" id="automodel" onClick={this.handleAutoModelSelect} name="automodel" />
                                 <label htmlFor="automodel"> Auto Models</label>
                             </div>
                             <h1>Models</h1>
-                            <p>Preprocessing is being done. Now, select models and their hyperparameters</p>
-                            <ManualModel modelForm={this.state.modelForm} mtype={this.state.mtype} />
+                            <p>Preprocessing is being done. Now, select models and their hyperparameters</p> */}
+                            <ManualModel
+                                modelForm={this.state.modelForm}
+                                mtype={this.state.mtype}
+                                projectdetail={this.state.projectdetail}
+                                handleManualModelDetails={this.handleManualModelDetails}
+                                handleSocketConnection={this.handleSocketConnection} />
                         </div>
                     </div>
                     {/* form6 for time series */}
                     <div className="container" id="form6">
-
+                        <div className="goback">
+                            <button className="btn btn-primary sampleData" id="sampleData" onClick={this.handleSampleData}>See Sample Data</button>
+                        </div>
                         <form onSubmit={this.handleSubmitTime}>
                             <div className="createform">
 
@@ -581,15 +670,18 @@ class Home extends Component {
                                         </div>
                                         <div className="col-60 ">
                                             <select name="Frequency" id="Frequency" value={this.state.frequency} onChange={this.handleFrequencyChange}>
-                                                <option value="D">Calendar days</option>
-                                                <option value="S">Secondly</option>
-                                                <option value="T">Minutely</option>
-                                                <option value="H">Hourly</option>
-                                                <option value="B">Business days</option>
+                                                <option value="D">Daily</option>
                                                 <option value="W">Weekly</option>
                                                 <option value="M">Monthly</option>
                                                 <option value="Q">Quaterly</option>
                                                 <option value="Y">Yearly</option>
+                                                {/* <option value="S">Secondly</option>
+                                                <option value="T">Minutely</option>
+                                                <option value="H">Hourly</option>
+                                                <option value="B">Business days</option> */}
+
+
+
 
                                             </select>
 

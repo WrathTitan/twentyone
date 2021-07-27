@@ -6,13 +6,12 @@ import json
 import pandas as pd
 from .libraries import *
 import yaml
-from yaml.loader import FullLoader
 from Files.hyperparameter import hyperparameter as hp
 import os 
 
 class training:
 
-    def train(userinputconfig,dataconfig,preprocessconfig):
+    def train(self,userinputconfig,dataconfig,preprocessconfig,cleanDataPath):
         
         with open(preprocessconfig) as f:
             preprocessconfigfile= yaml.load(f,Loader=FullLoader) #for split ratio
@@ -28,8 +27,9 @@ class training:
 
         test_ratio=preprocessconfigfile["split_ratio_test"] #input given the the user usually 0.3 by default
 
-        data=dataconfigfile["data"] 
-        
+        # data=dataconfigfile["clean_data"] 
+        data=cleanDataPath
+
         target_column=preprocessconfigfile["target_column_name"]
         
         
@@ -38,7 +38,9 @@ class training:
 
         elif dataconfigfile["problem_type"]=='regression':
             metrics=pd.DataFrame(columns=['modelname','mean_absolute_error','mean_squared_error','r2_score','mean_squared_log_error'])
-
+        #create location of pickle file
+        picklelocation=os.path.join(dataconfigfile["location"],str(dataconfigfile["id"])+"_model")
+        os.makedirs(picklelocation)
         #creates a pandas dataframe to store the metrics of the created model
         for model in userinputconfigfile:
             if model["isSelected"]:
@@ -55,6 +57,29 @@ class training:
                 print(metricsnewrow)
                 metrics.loc[len(metrics.index)]=metricsnewrow
                 
-        #stores the metrics in the assigned folder       
+        #stores the metrics in the assigned folder
+        accuracy=''
+        if dataconfigfile["problem_type"]=='classification':
+            metrics=metrics.sort_values(['accuracy_score', 'f1_score'], ascending=[False, False]).reset_index()
+            accuracy=metrics['accuracy_score'][0]*100
+        else:
+            metrics=metrics.sort_values(['r2_score', 'mean_absolute_error'], ascending=[False, False]).reset_index()      
+            accuracy=metrics['r2_score'][0]
+            
+        metrics=metrics.rename(columns={"modelname":"Model"}) 
         metricsLocation=os.path.join(dataconfigfile["location"],"metrics.csv")
-        metrics.to_csv(metricsLocation, index=True, index_label="modelname")
+        metrics.to_csv(metricsLocation, index=False)
+        
+        # bestmodel
+        best_model=metrics['Model'][0]
+        best_model_location=os.path.join(picklelocation,(str(best_model) +".pkl"))
+        
+        
+        return {
+            "Successful":True,
+            "metricsLocation":metricsLocation,
+            "pickleFolderPath": picklelocation,         #Generate a folder where all pickle files are residing
+            "pickleFilePath": best_model_location,             #Best model pickle file path
+            "accuracy":accuracy,                          #Accuracy of best model
+            "clusterPlotLocation": "clusterPlotLocation"    #Only if it is clustering
+        }

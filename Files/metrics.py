@@ -18,10 +18,17 @@ class Metrics:
         metricsnewrow=[modelname]
         for criteria in criterias:
             try:
-                metricsnewrow.append(eval(criteria+"(y,prediction)"))
+                metricsnewrow.append(round(eval(criteria+"(y,prediction)"),2))
 
-            except:
-                metricsnewrow.append("Not Available")
+            except Exception as e:
+                print(e)
+                if model_type=="Classification":
+                    metricsnewrow.append(round(eval(criteria+"(y,prediction,average='micro')"),2))
+                else:
+                    metricsnewrow.append("Not Available")
+                    
+            # else:
+            #     metricsnewrow.append("Not Available")
             
         
 

@@ -1,10 +1,18 @@
 # TwentyOne - 21
 
-
-
-<img src="https://github.com/pooja-bs-3003/twentyone/raw/main/imgs/21_logo.png" alt="logo" style="zoom: 80%;" />
-
----
+<p align="center">
+  <img src="images/21_logo.png" alt="logo" style="width: 200px" />
+</p>
+<p align="center">
+    <a href="https://curl.tech/" alt="Curl Tech">
+    	<img src="https://img.shields.io/badge/CurlTech-Project21-informational?style=plastic.svg">
+    </a>
+</p>
+<p align="center">
+    <img src="https://img.shields.io/badge/license-MIT-brightgreen.svg">
+    <img src="https://img.shields.io/badge/Version-v2.0-orange.svg">
+</p>
+<hr>
 
 Project 21 is an AutoML engine that aims to make the life of Data Scientists a lot easier by automating the process of generating, tuning and testing the best model according to their dataset.
 You provide the data, we provide the best model along with the required expertise to get you started in the field of ML.
@@ -14,28 +22,187 @@ Get started now!
 
 ---
 
-To run the project do the following - 
-1. Fork this repository.
+## Running Project21
 
-2. `git clone <url>` - put the url of your forked repo.
+This project requires the following dependencies installed beforehand.
 
-3. Create a virtual environment inside the project folder using the following:
-   
-   ```shell
-   python3 -m venv venv
-   ```
-   
-4. Activate the virtual environment using:
+* `python` version `3.8+` and/or above.
+* `node` version `v10.19.0` 
+* `npm` version `6.14.4`
+* `MongoDB Community` version `4.4.7` 
+* `pip` version 20.0.2
 
-   ```shell
-   source venv/bin/activate
-   ```
+### Installation and Running Instructions - Ubuntu
 
-5. Once the environment is activated, install the dependencies using:
+#### Method 1: Manually Typing Instructions In Terminal
 
-   ```shell
-   pip3 install -r requirements.txt
-   ```
+To run the project on Ubuntu by manually typing the commands one by one, do the following - 
+
+* Get a copy of this project locally and install the dependencies:
+
+  1. Fork this repository.
+
+  2. `git clone <url>` - put the url of your forked repo. Once you have the cloned copy locally. `cd` into the project folder.
+
+  3. Create a virtual environment inside the project folder using the following:
+
+     ```shell
+     python3 -m venv venv
+     ```
+
+  4. Activate the virtual environment using:
+
+     ```shell
+     source venv/bin/activate
+     ```
+
+  5. Once the environment is activated, install the dependencies using:
+
+     ```shell
+     pip3 install -r requirements.txt
+     ```
+
+  6. Now install the react dependencies by the following:
+
+     ```shell
+     cd Frontend/pr21/
+     npm i
+     ```
+
+* Once all dependencies are installed go to the project root folder and run the following commands:
+
+  1. Activate the virtual environment if not done so:
+
+     ```shell
+     source venv/bin/activate
+     ```
+
+  2. Start the Database server (mongodb community server)
+
+     ```shell
+     sudo systemctl start mongod
+     ```
+
+     Enter your password, if prompted to do so.
+
+  3. Start the Backend server (From the root folder)
+
+     ```shell
+     python3 api.py
+     ```
+
+  4. Start the Frontend server (From the root folder - can be done by opening a new terminal window)
+
+     ```shell
+     cd Frontend/pr21/
+     npm start
+     ```
+
+* Go to `localhost:3000` and use Project21 for your needs!
+
+#### Method 2: Using Shell Scripts
+
+To run the project on Ubuntu using shell scripts, do the following - 
+
+* Run the Installation shell script
+
+  ```shell
+  ./application-install-ubuntu.sh
+  ```
+
+* Start the Frontend, Backend and Database server
+
+  ```shell
+  ./application-startup-ubuntu.sh
+  ```
+
+* Go to `localhost:3000` and use Project21 for your needs!
+
+---
+
+### Installation and Running Instructions - Windows
+
+#### Method 1 - Manually Typing Instructions In Terminal
+
+To run the project on Windows by manually typing the commands one by one, do the following - 
+
+* Get a copy of this project locally and install the dependencies
+
+  1. Fork this repository.
+
+  2. `git clone <url>` - put the url of your forked repo. Once you have the cloned copy locally. `cd` into the project folder.
+
+  3. Create a virtual environment inside the project folder using the following:
+
+     ```shell
+     python -m venv venv
+     ```
+
+  4. Activate the virtual environment using:
+
+     ```shell
+     .\venv\Scripts\activate
+     ```
+
+  5. Now Install React dependencies by the following:
+
+     ```shell
+     cd Frontend\pr21\
+     npm i
+     ```
+
+  6. Once the environment is activated, install the dependencies using:
+
+     ```
+     pip install -r requirements.txt
+     ```
+
+* Once all dependencies are installed go to the project root folder and run the following commands:
+
+  1. Activate the virtual environment if not done so:
+
+     ```shell
+     .\venv\Scripts\activate
+     ```
+
+  2. Start the Database server - By running MongoDB Community Edition. (Can be downloaded from their website)
+
+  3. Start the Backend server (From the root folder)
+
+     ```shell
+     python api.py
+     ```
+
+  4. Start the Frontend server (From the root folder - can be done by opening a new terminal window)
+
+     ```shell
+     cd Frontend\pr2\
+     npm start
+     ```
+
+* Go to `localhost:3000/` and use Project21 for your needs!
+
+#### Method 2 - Using Shell Scripts
+
+To run the project on Windows using shell scripts, do the following - 
+
+* Run the Installation shell script
+
+  ```shell
+  .\application-install-windows.sh
+  ```
+
+* Start the Frontend, Backend and Database server
+
+  ```shell
+  .\application-startup-windows.sh
+  ```
+
+* Go to `localhost:3000` and use Project21 for your needs!
+
+---
+
+Note: In case of any errors or bugs faced, please raise an issue on the GitHub page. Contributions are gladly welcomed!
 
 ---
 
@@ -45,7 +212,7 @@ To run the project do the following -
 
 -  [Architecture of Auto ML 21](#BLOCKS)
 
--  [Features of Auto ML 21](#Features-of-Auto-ML-21)
+-  [Features of Auto ML 21](#Features-of-Project-21)
 
 -  [ML Models](#ML-Models)
 
@@ -58,7 +225,7 @@ To run the project do the following -
 
 
 
-# Architecture of AUTO ML 21  <a id='BLOCKS'></a>
+# Architecture of Project 21  <a id='BLOCKS'></a>
 
 ### Main concepts
 
@@ -81,7 +248,7 @@ Top level architecture provides how things works in twentyone.
 
 
 
-# Features of Auto ML 21 <a id='Features-of-Auto-ML-21'></a>
+# Features of Project 21 <a id='Features-of-Project-21'></a>
 
 - TwentyOne is designed to leverage transfer learning as much as possible. For  many problems the data requirement for 21 is minimal. This saves a lot  of time, effort and cost in data collection. Model training is also  greatly reduced.
 
@@ -89,13 +256,15 @@ Top level architecture provides how things works in twentyone.
 
 - 21 builds "Robust Models"
 
-- 21 requires less amount of data  
+- 21 requires less amount of user interaction
 
 - Cost for development is minimal (mainly compute cost, rest is reduced).
 
 - 21 provides Data Security and Privacy
 
 - 21 takes less amount of time to build a model.
+
+- Retraining can be done for same project to improve models 
 
   
 
@@ -104,124 +273,71 @@ Top level architecture provides how things works in twentyone.
   In 21 user can build two categories of machine learning models. They are:
 
   - **CLASSIFICATION**
-
   - **REGRESSION**
+  - **CLUSTERING**
+  - **TIME SERIES**
 
     
 
-    ### CLASSIFICATION
+  ## CLASSIFICATION
 
-    Machine learning algorithms is to recognize objects and being able to  separate them into categories. This process is called classification,  and it helps us segregate vast quantities of data into discrete values,  i.e. :distinct, like 0/1, True/False, or a pre-defined output label  class.
+    Machine learning algorithms is to recognize objects and being able to  separate them into categories. This process is called classification,  and it helps us segregate vast quantities of data into discrete values,  i.e. distinct, like 0/1, True/False, or a pre-defined output label  class.
+    > Models Used:
+    > 1. Logistic Regression
+    > 2. Random Forest Classifier
+    > 3. Decision Tree
+    > 4. XGBOOST
+    > 5. GaussianNB
+    > 6. K-NN
+    > 7. Polynomial
+    > 8. SVR
 
-    ![Machine Learning: Types of Classification Algorithms](https://serokell.io/files/fx/fxpez2t8.7_(4)_(1).jpg)
-
-    
-
-  
-
-## Logistic Regression
-
-- Logistic regression is a supervised learning classification algorithm  used to predict the probability of a target variable. The nature of  target or dependent variable is dichotomous, which means there would be  only two possible classes.
-
-- It is one of the simplest ML algorithms that can be used for various  classification problems such as spam detection, Diabetes prediction,  cancer detection etc.
-
-- Metrics to evaluate a logistic regression model such as confusion matrix, ROC curve.
-
-- **Confusion Matrix:** It is nothing but a tabular representation of Actual vs Predicted  values. This helps us to find the accuracy of the model and avoid  overfitting. 
-
-  
-
-  
-
-  ## ![How to Remember all these Classification Concepts forever | by Jerry An |  The Startup | Medium](https://miro.medium.com/max/1200/0*-oGC3SE8sPCPdmxs.jpg)
-
-- **ROC Curve:** Receiver Operating Characteristic(ROC) summarizes the model’s performance by  evaluating the trade offs between true positive rate (sensitivity) and  false positive rate(1- specificity).
-
-- The area under curve (AUC), referred to as index of accuracy(A) or  concordance index, is a perfect performance metric for ROC curve. Higher the area under curve, better the prediction power of the model.
-
-  
-
-  ![logitstic regression, roc curve, logit function](https://www.analyticsvidhya.com/wp-content/uploads/2015/11/logit_roc-300x292.png)
-
-##  Naive Bayes
-
-- Naive Bayes methods are a set of supervised learning algorithms based on applying Bayes’ theorem with the “naive” assumption of conditional independence between every pair of features given the value of the class variable.
-- Performance of Naive Bayes is evaluated by accuracy,precision,re-call, f1-score,confusion matrix & ROC Curve.
-
-## Decision Tree
-
-- Decision Tree is a **Supervised learning technique**  that can be used for both classification and Regression problems. It is a tree-structured classifier, where internal nodes represent the features of a dataset, branches represent the decision rules and each leaf node represents the outcome.
-
-- In a Decision tree, there are two nodes, which are the **Decision Node** and **Leaf Node.** Decision nodes are used to make any decision and have multiple  branches, whereas Leaf nodes are the output of those decisions and do  not contain any further branches. 
-
-  ### Performance metrics for Decision Tree
-
-  
-
-  
-
-<img src="https://www.researchgate.net/profile/Celestine-Iwendi/publication/342410608/figure/fig3/AS:909206194507778@1593783057258/Evaluation-metrics-for-decision-tree.png" alt="| Evaluation metrics for decision tree." style="zoom:50%;" />
-
-## Random Forest
-
-- Random forests creates decision trees on randomly selected data samples, gets prediction from each tree and selects the best solution by means  of voting. It also provides a pretty good indicator of the feature  importance.
-
-- It runs efficiently on large data bases and gives estimates of what variables are important in the classification.         
-
-  <img src="https://builtin.com/sites/default/files/styles/ckeditor_optimize/public/inline-images/two-tree-random-forest.png" alt="two tree random forest" style="zoom:50%;" />
 
 - Performance of random forest is evaluated by Precision, Recall, F1-score & Accuracy.
 
-## Regression
+
+   ## Regression
 
 - Regression is a supervised learning technique which helps in finding the correlation between variables and enables us to predict the continuous output variable based on the one or more  predictor variables.
 - Regression shows a line or curve that passes through all the datapoints on target-predictor graph in such a way that the vertical  distance between the datapoints and the regression line is minimum.
-- Regression Algorithms are Linear Regression,Polynomial Regression, Support Vector Regressor,Random Forest,Decision Tree & K-NearestNeighbors.
 
-## Linear Regression
-
-- Linear Regression is a supervised machine learning algorithm where the predicted output is continuous and has a constant slope.
-
-- Linear regression shows the linear relationship, which means it finds  how the value of the dependent variable is changing according to the  value of the independent variable.
-
-  
-
-<img src="https://static.javatpoint.com/tutorial/machine-learning/images/linear-regression-in-machine-learning.png" alt="Linear Regression in Machine Learning" style="zoom:50%;" />
-
-- Evaluation metrics are a measure of how good a model performs and how well it approximates the relationship. The table below  shows performance metrics for
-
-  regression.
-
+    > Models Used:
+    > 1. Logistic Regression
+    > 2. Random Forest Regression
+    > 3. DecisionTree
+    > 4. XGBOOST
+    > 5. GaussianNB
+    > 6. K-NN
+    > 7. Polynomial
+    > 8. SVC
+    > 9. MultinomialNB
+    
+   ## Clustering
    
+- Clustering is unsupervised algorithm technique which can be used on data where target variable in unknown. It can be used in forming groups of similar data on different basis
+    > Models Used:
+    > 1. Kmeans
+    > 2. Lmodes
+    > 3. DBSCAN
+    > 4. Birch
+    > 5. Optics
+    > 6. K-NN
+    > 7. Agglomerative
+    > 8. Mean shift
+    > 9. Affinity Propagation
+    
+    ## Time Series
+   
+- Time series algorithms are used on data which has dependency on time for example sales, finance, temperature etc.
+    > Models Used:
+    > 1. AR
+    > 2. MA
+    > 3. ARMA
+    > 4. ARIMA
+    > 5. SARIMA
 
-  ![How to evaluate regression models? | by Vimarsh Karbhari | Acing AI | Medium](https://miro.medium.com/max/2524/1*G6aSSAJuMDF5RYvPeKqPzg.png)
 
-  #### 
-
-## Polynomial Regression
-
-- Polynomial Regression is a regression algorithm that models the  relationship between a dependent(y) and independent variable(x) as nth  degree polynomial. The Polynomial Regression equation is given below:
-
-```
-y= b0+b1x1+ b2x12+ b2x13+...... bnx1n
-```
-
-- In Polynomial regression, the original features are  converted into Polynomial features of required degree (2,3,..,n) and  then modeled using a linear model.
-
-  -  The graph below shows different between linear & polynomial regression.
-
-  ![ML Polynomial Regression](https://static.javatpoint.com/tutorial/machine-learning/images/machine-learning-polynomial-regression.png)
-
-## Support Vector Machine
-
-- Support Vector Machine or SVM is one of the most popular Supervised  Learning algorithms, which is used for Classification as well as  Regression problems.
-
-- The goal of the SVM algorithm is to create the best line or decision  boundary that can segregate n-dimensional space into classes so that we  can easily put the new data point in the correct category in the future. This best decision boundary is called a hyperplane.
-
-  
-
-  <img src="https://static.javatpoint.com/tutorial/machine-learning/images/support-vector-machine-algorithm.png" alt="Support Vector Machine Algorithm" style="zoom:67%;" />
 
 ### Maintained By
 
-This repo is maintained by  **Shivaramkrs** curl team members and contibutors **NikhilAgarwal**, **Paarth S Barkur**, **Pooja BS**, **Rishabh Bhatt** & **Shubham Kumar Shaw**.
+This repository is maintained by  **Shivaramkrs** and curl team members and contributors **Nikhil Agarwal**, **Paarth S Barkur**, **Rishabh Bhatt**, **Pooja BS** & **Shubham Kumar Shaw**.

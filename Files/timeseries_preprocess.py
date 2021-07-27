@@ -8,6 +8,7 @@ import os
 import yaml
 from scipy import stats
 
+
 class TimeseriesPreprocess:     
     def preprocess(self,config,folderLocation):
 
@@ -16,11 +17,15 @@ class TimeseriesPreprocess:
         
         df = pd.read_csv(config_data["raw_data_address"])
         
-        df.dropna(how='all', axis=1, inplace=True)
+        # df.dropna(how='all', axis=1, inplace=True)
         
         print("DataFrame again: ", df)
         df.set_index(config_data['date_index'], inplace = True)
-        df.index=pd.to_datetime(df.index) 
+        df.index=pd.to_datetime(df.index,utc=True) 
+        df.index=df.index.tz_convert(None)
+        df=df.resample(config_data['frequency']).ffill()
+        df.dropna(how='any', axis=0, inplace=True)
+        
         # df = df['Cases'].resample(config_data['frequency']).sum()
 
 
@@ -31,27 +36,29 @@ class TimeseriesPreprocess:
         
         df = df.fillna(method='bfill')
     
-        df.rename(columns = {config_data['date_index']:'ds', config_data['target_column_name']:'y'}, inplace = True)
+        df.rename(columns = {config_data['target_column_name']:'y'}, inplace = True)
+        df.drop([] ,axis=1, inplace=True)
+        df2 = pd.DataFrame(df['y'])
+        print(df2)
+        # df['Date'] = df.index
 
-        df['Date'] = df.index
+        # object_type_column_name = []
+        # for col_name in df.columns:
+        #     if df[col_name].dtype == 'object':
+        #         object_type_column_name.append(col_name)
+        #         config_data['encoding_type'].extend(['One-Hot Encoding'])
 
-        object_type_column_name = []
-        for col_name in df.columns:
-            if df[col_name].dtype == 'object':
-                object_type_column_name.append(col_name)
-                config_data['encoding_type'].extend(['One-Hot Encoding'])
+        # print("object type column name: ",object_type_column_name)
+        # if object_type_column_name != [] :
+        #     config_data['encode_column_name'] = object_type_column_name
 
-        print("object type column name: ",object_type_column_name)
-        if object_type_column_name != [] :
-            config_data['encode_column_name'] = object_type_column_name
-
-            encoder = OneHotEncoder(drop = 'first', sparse=False)
-            df_encoded = pd.DataFrame (encoder.fit_transform(df[object_type_column_name]))
-            df_encoded.columns = encoder.get_feature_names([object_type_column_name])
-            df.drop([object_type_column_name] ,axis=1, inplace=True)
-            df= pd.concat([df, df_encoded ], axis=1)                 
+        #     encoder = OneHotEncoder(drop = 'first', sparse=False)
+        #     df_encoded = pd.DataFrame (encoder.fit_transform(df[object_type_column_name]))
+        #     df_encoded.columns = encoder.get_feature_names([object_type_column_name])
+        #     df.drop([object_type_column_name] ,axis=1, inplace=True)
+        #     df= pd.concat([df, df_encoded ], axis=1)                 
             
-        df.to_csv('clean_data.csv')
+        df2.to_csv('clean_data.csv', index_label=False)
         shutil.move("clean_data.csv",folderLocation)
         clean_data_address = os.path.abspath(os.path.join(folderLocation,"clean_data.csv"))
         config_data['clean_data_address'] = clean_data_address

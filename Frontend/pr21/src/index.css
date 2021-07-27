@@ -409,8 +409,8 @@ input[type=text],input[type=number] ,select, textarea {
     background-color: #507DBC;
     color: #fff;
     float:right;
-    margin-top: 1em;
-    padding: 0.8em;
+    /* margin-top: 1em; */
+    padding: 0.7em;
   }
   .btn-primary:hover{
     background-color: #bbd1ea;
@@ -470,7 +470,7 @@ input[type=text],input[type=number] ,select, textarea {
   position: absolute;
   width: 100%;
   height: 100%;
-  padding: 5em 0 3em 0;
+  padding: 4em 0 3em 0;
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
   border-radius: 8px;
@@ -525,6 +525,10 @@ input[type=text],input[type=number] ,select, textarea {
 #form2{
   display: none;
   /* display: block; */
+}
+.sampleData{
+  float: none;
+  margin:0 auto;
 }
 /* ****************************************************************************************** */
 /* For form 3 */
@@ -610,7 +614,7 @@ input[type=text],input[type=number] ,select, textarea {
   display: none;
   position: absolute;
   background-color: #DAE3E5;
-  min-width: 120px;
+  min-width: 150px;
   box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
   z-index: 1;
 }
@@ -648,7 +652,7 @@ input[type=text],input[type=number] ,select, textarea {
   display: block;
 }
 .dropdown{
-  position:initial;
+  position:relative;
 }
 .dropdown-content2 {
   display: none;
@@ -674,7 +678,7 @@ input[type=text],input[type=number] ,select, textarea {
   margin-left:7em;
   width:80%;
   background-color: #507DBC;
-  height: 20em;
+  height: 32em;
   box-shadow: 5px 5px 5px 5px grey;
   /* background-color: #000; */
 }
@@ -743,10 +747,10 @@ input[type=text],input[type=number] ,select, textarea {
 }
 .manualmodellist input[type=checkbox]{
   /* margin: 4px; */
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   margin-top: 2.5em;
-  margin-right: 0.2em;
+  margin-right: 1em;
 
 }
 .manualmodellist label{
@@ -755,6 +759,17 @@ input[type=text],input[type=number] ,select, textarea {
 }
 .manualcard{
   height:10em;
+}
+
+._checkbox
+{
+  box-shadow:  0 0  15px 0.5em #507DBC, 0 0 0.15em 0.1em currentColor;
+}
+
+.modelName{
+  background-color: #e9eef3;
+  padding: 2em;
+  border-radius: 8px;
 }
 /* For hyperparmeter modal css */
 .modal-backdrop
@@ -923,7 +938,7 @@ background-image: url(./assets/img/bg19.png); */
 }
 .backbtn{
   /* color: rgba(12, 24, 49, 0.901); */
-  padding: 0.5em;
+  /* padding: 0.5em; */
   margin: 1em;
   /* background-image:linear-gradient(to left bottom , rgba(236, 236, 236, 0.815),rgba(119, 119, 116, 0.822)); */
   /* font-family: 'Franklin Gothic Medium', 'Arial Narrow', Arial, sans-serif; */
@@ -1058,6 +1073,21 @@ background-color: #eef1f5;
   /* background:linear-gradient(rgba(67, 34, 87, 0.336),rgba(142, 129, 153, 0.5)), url(./assets/img/bg4.jpg); */
   
 }
+.card{
+  overflow-y: auto;
+  overflow-x: auto; 
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px; 
+  background: transparent; 
+}
+
+::-webkit-scrollbar-thumb {
+  background: #BBD1EA;
+}
+
 .sec6card{
   /* background-image:linear-gradient(to left bottom , #090429e1,rgba(87, 6, 37, 0.87)); */
   font-family: 'Roberto',sans-serif;
@@ -1129,7 +1159,9 @@ background-color: #eef1f5;
   /* margin-left: 44%;
   margin-right: 36%; */
 }
-
+.cardp{
+  text-align: left;
+}
 /* ************************************************************************************************************************ */
 /* Metrics Table */
 .metrics{
@@ -1162,11 +1194,12 @@ table {
 .metricstable tr:nth-child(odd) {
 	color: #000;
   background-color: #fff;
+  text-align: center;
 }
 .metricstable tr:nth-child(even){
   background-color: #a7c8e9;
   color: #000;
- 
+  text-align: center;
 }
 .metricstable td{
   padding: 12px;
@@ -1183,7 +1216,7 @@ table {
 .metricstable td :hover{
 			background-color: #BBD1EA;		
 }
-.metricstable tr:nth-child(even) .metricValue {
+/* .metricstable tr:nth-child(even) .metricValue {
   background-color: #fff;
   text-align: center;
   font-size: large;
@@ -1192,7 +1225,7 @@ table {
   background-color: #a7c8e9;
   text-align: center;
   font-size: large;
-}	
+}	 */
 /* ************************************************************************************************************************ */
 /* plots */
 .plot{
@@ -1228,6 +1261,15 @@ table {
  border:5px dashed rgba(0, 0, 0, 0.603);
  font-weight: 600;
  font-family: 'Roberto',sans-serif;
+}
+.fa-trash{
+  color: rgba(255, 0, 0, 0.61);
+  font-size: xx-large;
+  float: right;
+  padding: 0.4em 0.3em 0.4em 0.2em;
+}
+.fa-trash:hover{
+  color: red;
 }
 em{
   font-style: normal;
@@ -1286,9 +1328,9 @@ em{
   text-align: center;
   color: rgb(3, 53, 99);
 }
-.sec7h5 table{
+/* .sec7h5 table{
   margin: 0 auto;
-}
+} */
 .projecttable tbody{
   /* background-color: #dae3e5; */
   box-shadow: 0 0 20px rgba(0,0,0,0.1);
@@ -1298,7 +1340,7 @@ em{
 
 .projecttable tr{
   padding: 0.5em;
-  background-color: #DAE3E5;
+  /* background-color: #DAE3E5; */
   font-family: 'Roberto',sans-serif;
   font-weight: 600;
   
@@ -1308,10 +1350,10 @@ em{
   border: 2px solid rgba(0, 0, 0, 0.123);
   
 }
-.firstcol{
+/* .firstcol{
   background-color: #cbdfe4;
   
-}
+} */
 /* ************************************************************************************************************************ */
 
 /* footer design */
@@ -1330,3 +1372,13 @@ em{
 }
 
 /* Brain vector created by iuriimotov - www.freepik.com used in background images */
+.terminal{
+  background-color: #000;
+  width:100%;
+  height:200px;
+  overflow: auto;
+  border-radius: 8px;
+  color: green;
+  padding:1em;
+}
+

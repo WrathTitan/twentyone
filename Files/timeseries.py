@@ -12,9 +12,17 @@ import shutil
 #import kaleido
 import plotly.express as px
 import plotly.graph_objects as go
-import pickle
-
+from statsmodels.tsa.statespace.sarimax import SARIMAX
+from pmdarima.arima import StepwiseContext
+from statsmodels.tsa.arima_model import ARIMAResults
+import random
 from Files.metrics import Metrics as met
+import warnings
+import pickle 
+from statsmodels.graphics.tsaplots import acf,pacf
+import pmdarima as pm
+import sys
+
 class timeseries:
     def createprophet(self,dataconfig):
         with open(dataconfig) as f:
@@ -62,41 +70,105 @@ class timeseries:
         
         data=pd.read_csv(dataconfigfile["clean_data_address"])
         location=dataconfigfile["location"]
-        testsize=int(len(data)*0.2)
-        train=data.iloc[:-testsize]
-        test=data.iloc[-testsize:]
-        model = auto_arima(train['y'],trace=True, seasonal=True) 
-        testpred=model.predict(testsize)
-        testactual=test.y
+        choice=dataconfigfile['frequency']
+        diction={"D":7,"W":52,"M":12,"Q":4,"Y":2,}
+        freq=24
+        if choice in diction:
+            freq=diction[choice]
+        else:
+            freq=12
+        print("frequency",freq)
+        # warnings.filterwarnings("ignore")
+        # sys.stdout=open("logs.log","a+")
+        with StepwiseContext(max_dur=15):
+            model = pm.auto_arima(data, stepwise=True, error_action='ignore', seasonal=True,m=freq,trace=True)
+        # sys.stdout.close()
+        #metrics=met.calculate_metrics("fbprophet","Regression",testpred,testactual)
+        order=model.get_params(deep=False)['order']
+        seasonal=model.get_params(deep=False)['seasonal_order']
+        print("order=",order)
+        print("seasonal",seasonal)
+        print("frequency",freq)
+        modelfinal=SARIMAX(data,order=order,seasonal_order=seasonal).fit()
+        
+        start=1
+        end=len(data)
+        compare=modelfinal.predict(start=start,end=end,typ='levels')
+       
+        compare.index=data.index
 
-        metrics_new_row=met.calculate_metrics("arima","Regression",testpred,testactual)
+        metrics_new_row=met.calculate_metrics("arima","Regression",data['y'],compare)
         metricsLocation=os.path.join(dataconfigfile["location"],"metrics.csv")
         metrics.loc[len(metrics.index)]=metrics_new_row
         metrics.to_csv(metricsLocation, index=True)
-        compare=pd.DataFrame(testpred,columns=['predictions'])
-        compare['actual']=testactual.values
+        r2score=metrics_new_row[3]
 
         fig = go.Figure()
-        fig.add_trace(go.Scatter(x=compare.index,y=compare.actual,name="actual"))
+        fig.add_trace(go.Scatter(x=data.index,y=data.y,name="actual"))
 
-        fig.add_trace(go.Scatter(x=compare.index,y=compare.predictions,name="predictions"))
+        fig.add_trace(go.Scatter(x=compare.index,y=compare,name="predictions"))
   
  
         plotlocation=dataconfigfile['location']
-        fig.write_html(os.path.join(plotlocation,"plot.html"))
         plotlocation=os.path.join(plotlocation,"plot.html")
+        acf_=acf(data['y'])
+        acf_=pd.DataFrame(acf_,columns=['data'])
+        pacf_=pacf(data['y'])
+        pacf_=pd.DataFrame(pacf_,columns=['data'])
+        fig2=self.plot_graphs(acf_,"Auto correlative function")
+        fig3=self.plot_graphs(pacf_,"Partial-Auto correlative funtion")
+        with open(plotlocation, 'a') as f:
+            f.write(fig.to_html(include_plotlyjs='cdn',full_html=False))
+            f.write(fig2.to_html(include_plotlyjs='cdn',full_html=False))
+            f.write(fig3.to_html(include_plotlyjs='cdn',full_html=False))
+        f.close()
 
-        modelfinal=auto_arima(data['y'], trace=True,suppress_warnings=True, seasonal=True)
+        # modelfinal=auto_arima(data['y'], trace=True,suppress_warnings=True, seasonal=True)
         location=os.path.join(dataconfigfile["location"],str(dataconfigfile["id"])+"_model")
         os.makedirs(location)
         name=str(dataconfigfile["experimentname"])+str(dataconfigfile["id"])+"_model"
         # modelfinal.save(name)
-        with open(name, 'wb') as pkl:
+        pickleFilePath =os.path.join(location,name)
+        with open(pickleFilePath, 'wb') as pkl:
             pickle.dump(modelfinal, pkl)
 
-        shutil.move(name,location)
+        # shutil.move(name,location)
 
-        pickleFilePath =os.path.join(location,name)
         
-        return {"Successful": True, "cleanDataPath": dataconfigfile["clean_data_address"], "metricsLocation":metricsLocation, "pickleFolderPath":location, "pickleFilePath":pickleFilePath, "plotLocation":plotlocation}
         
+        return {"Successful": True, "cleanDataPath": dataconfigfile["clean_data_address"], "metricsLocation":metricsLocation, "pickleFolderPath":location, "pickleFilePath":pickleFilePath,"plotLocation":plotlocation, "accuracy":r2score}
+        
+    def arimainference(self,pickleFileLocation,storeLocation,daysintothefuture):
+        print(pickleFileLocation)
+        model=ARIMAResults.load(pickleFileLocation)
+        predictions=model.forecast(daysintothefuture)
+        predictions=pd.DataFrame({"predictions":predictions})
+        print(predictions)
+        # ran=random.randint(100,999)
+        csvresults=predictions.to_csv()
+        inferenceDataResultsPath=os.path.join(storeLocation,"inference.csv")
+        inference=open(inferenceDataResultsPath,"w+")
+        inference.write(csvresults)
+        inference.close()
+
+        return inferenceDataResultsPath
+
+    def plot_graphs(self,acf,name):
+    
+        acfig = px.bar(acf, x=acf.index, y="data",title=name)
+        # acfig.show()
+        return acfig
+
+    def plotinference(self,predictionsPath,storeLocation,cleanDataPath,daysIntoFuture,frequency):
+        
+        data=pd.read_csv(cleanDataPath)
+        predictions=pd.read_csv(predictionsPath)
+        index_of_fc = pd.date_range(data.index[-1], periods = daysIntoFuture,freq=frequency)
+        fig = go.Figure()
+        ran=random.randint(100,999)
+        fig.add_trace(go.Scatter(x=data.index,y=data.y,name="actual"))
+        fig.add_trace(go.Scatter(x=index_of_fc,y=predictions.predictions,name="predictions"))
+        # fig=go.Figure(data=go.Scatter(x=predictions.index,y=predictions.predictions))
+        fig.write_html(os.path.join(storeLocation,"inference.html"))
+
+        return os.path.join(storeLocation,"inference.html")

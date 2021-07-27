@@ -1,6 +1,46 @@
+ # Hyperparameter tuning for K-NN Classifier
+ - name: KNeighborsClassifier
+   isSelected: false
+   type: Classification
+   datatype: Tabular
+   complexity: ML
+   hyper:
+    - name: n_neighbors
+      value: 5
+      type: int
+      ischanged: false
+      options: null
+      vary: true
+      range:
+         type: linear
+         min: 5
+         max: 50
+         num_samp: 20
+    - name: leaf_size
+      value: 30
+      ischanged: false
+      type: int
+      options: null
+      vary: true
+      range:
+          type: linear
+          min: 10
+          max: 300
+          num_samp: 20
+    - name: algorithm
+      value: auto
+      ischanged: false
+      vary: false
+      type: option
+      options:
+        - ball_tree
+        - auto
+        - kd_tree
+        - brute
+      range: null
 # Hyperparameter Tuning for K-NN Regressor
  - name: KNeighborsRegressor
-   isSelected: true
+   isSelected: false
    type: Regression
    datatype: Tabular
    complexity: ML
@@ -14,7 +54,7 @@
       range:
          type: linear
          min: 3
-         max: 100
+         max: 50
          num_samp: 30
     - name: leaf_size
       value: 30
@@ -90,19 +130,19 @@
  
       # Hyperparameter tuning for RandomForest Regressor  
  - name: RandomForestRegressor
-   isSelected: true
+   isSelected: false
    type: Regression
    datatype: Tabular
    complexity: ML
    hyper:
     - name: criterion
-      value: MSE
+      value: mse
       ischanged: false
       vary: false
       type: option
       options: 
-        - MAE # Mean Absolute Error (MAE)
-        - MSE # Mean Squared Error (MSE)
+        - mae # Mean Absolute Error (MAE)
+        - mse # Mean Squared Error (MSE)
       range: null
     - name: n_estimators
       value: 100
@@ -137,49 +177,9 @@
         min: 5
         max: 100
         num_samp: 20
-  # Hyperparameter tuning for K-NN Classifier
- - name: KNeighborsClassifier
-   isSelected: false
-   type: Classification
-   datatype: Tabular
-   complexity: ML
-   hyper:
-    - name: n_neighbors
-      value: 5
-      type: int
-      ischanged: false
-      options: null
-      vary: true
-      range:
-         type: linear
-         min: 5
-         max: 100
-         num_samp: 20
-    - name: leaf_size
-      value: 30
-      ischanged: false
-      type: int
-      options: null
-      vary: true
-      range:
-          type: linear
-          min: 10
-          max: 300
-          num_samp: 20
-    - name: algorithm
-      value: auto
-      ischanged: false
-      vary: false
-      type: option
-      options:
-        - ball_tree
-        - auto
-        - kd_tree
-        - brute
-      range: null
-  # Hyperparameter tuning for DecisionTree Regressor
+ # Hyperparameter tuning for DecisionTree Regressor
  - name: DecisionTreeRegressor
-   isSelected: true
+   isSelected: false
    type: Regression
    datatype: Tabular
    complexity: ML
@@ -205,6 +205,7 @@
         min: 10
         max: 500
         num_samp: 20
+        type: linear
     - name: min_samples_split
       value: 2
       ischanged: false
@@ -215,6 +216,7 @@
         min: 0
         max: 300
         num_samp: 50 
+        type: linear
     # Hyperparameter tuning for XGBOOST classifier
  - name: XGBClassifier
    isSelected: false
@@ -256,23 +258,24 @@
          max: 1.0e+5
          num_samp: 50
   # Hyperparameter tuning for Polynomial Regressor
- - name: PolynomialRegression
-   isSelected: true
-   type: Regression
-   datatype: Tabular
-   complexity: ML
-   hyper:
-    - name: poly_degree
-      value: 2
-      ischanged: false
-      type: int
-      vary: true
-      options: null
-      range:
-         type: linear
-         min: 2
-         max: 7
-         num_samp: 5
+#  - name: PolynomialRegressor
+#    isSelected: false
+#    type: Regression
+#    datatype: Tabular
+#    complexity: ML
+#    hyper:
+#     - name: poly_degree
+#       value: 2
+#       ischanged: false
+#       type: int
+#       vary: true
+#       options: null
+#       range:
+#          type: linear
+#          min: 2
+#          max: 7
+#          num_samp: 5
+         
   # Hyperparameter tuning for  GaussianNaiveBayes
  - name: GaussianNB
    isSelected: false
@@ -318,7 +321,7 @@
       range: null
   # Hyperparameter tuning for XGBOOST Regressor
  - name: XGBRegressor
-   isSelected: true
+   isSelected: false
    type: Regression
    datatype: Tabular
    complexity: ML
@@ -400,7 +403,7 @@
       range: null
     # Hyperparameter tuning for Linear Regressor
  - name: LinearRegression
-   isSelected: true
+   isSelected: false
    type: Regression
    data_type: Tabular
    complexity: ML
@@ -412,7 +415,45 @@
       type: bool # either option, bool or number
       options: null
       range: null
-  # Hyperparameter tuning for SupportVector Classifier(SVC)
+ # Hyperparameter tuning for SupportVector Regressor(SVR)
+ - name: SVR
+   isSelected: false
+   type: Regression
+   data_type: Tabular
+   complexity: ML
+   hyper:
+    - name: C
+      vary: true
+      value: 1.0
+      ischanged: false
+      type: float # either option, bool or number
+      options: null
+      range: 
+         min: 1.0e-5
+         max: 1.0e+3
+         num_samp: 100
+         type: log # can be log or linear
+    - name: kernel
+      vary: false
+      value: rbf
+      ischanged: false
+      type: option # either option, bool or number
+      options:
+        - linear
+        - poly
+        - rbf
+        - sigmoid
+      range: null
+    - name: gamma
+      vary: true
+      value: scale
+      ischanged: false
+      type: option # either option, bool or number
+      options:
+        - auto
+        - scale
+      range: null
+# Hyperparameter tuning for SupportVector Classifier(SVC)
  - name: SVC
    isSelected: false
    type: Classification
@@ -450,47 +491,7 @@
         - auto
         - scale
       range: null
-
-  # Hyperparameter tuning for SupportVector Regressor(SVR)
- - name: SVR
-   isSelected: true
-   type: Regression
-   data_type: Tabular
-   complexity: ML
-   hyper:
-    - name: C
-      vary: true
-      value: 1.0
-      ischanged: false
-      type: float # either option, bool or number
-      options: null
-      range: 
-         min: 1.0e-5
-         max: 1.0e+3
-         num_samp: 50
-         type: log # can be log or linear
-    - name: kernel
-      vary: false
-      value: rbf
-      ischanged: false
-      type: option # either option, bool or number
-      options:
-        - linear
-        - poly
-        - rbf
-        - sigmoid
-      range: null
-    - name: gamma
-      vary: true
-      value: scale
-      ischanged: false
-      type: option # either option, bool or number
-      options:
-        - auto
-        - scale
-      range: null
-
-  # Hyperparameter Tuning for RandomForest Classifier
+# Hyperparameter Tuning for RandomForest Classifier
  - name:  RandomForestClassifier
    isSelected: false
    type: Classification
@@ -520,6 +521,10 @@
          num_samp: 20
          type: linear # can be log or linear
 
+
+ 
+
+  
     
 
 

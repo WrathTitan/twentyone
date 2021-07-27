@@ -12,6 +12,7 @@ from sklearn.preprocessing import OneHotEncoder
 
 import os
 import yaml
+from yaml.loader import FullLoader
 from scipy import stats
 
 class Preprocess:     
@@ -19,136 +20,166 @@ class Preprocess:
         """
         This function is for preprocessing the data when the user selects manual preprocessing.                     
         """
-        # config = open("preprocess_config.yaml", 'r')
-        config_data = yaml.safe_load(open(config,'r'))
+        with open(config) as f:
+            config_data= yaml.load(f,Loader=FullLoader) 
 
-        
         df = pd.read_csv(config_data["raw_data_address"])
         
-        #### Handling missing data
+        df.dropna(how='all', axis=1, inplace=True)
 
-        # drop columns
-        
-        def drop_NA(df):
-            # On calling this function it drops all the columns and rows which are compleatly null.
-            nan_value = config_data["na_notation"]
-            df.replace("", nan_value, inplace=True)
-            df = df.dropna(how='all', axis=1, inplace=True)
-            df = df.dropna(how='all', inplace=True)
-            
-        if config_data['drop_column_name'][0] != None:
-            df=df.drop(config_data["drop_column_name"], axis = 1)
-            drop_NA(df)
-        else:
-            drop_NA(df)
+        if config_data["is_auto_preprocess"] == False:
 
-        # imputation
-        if config_data['imputation_column_name'][0] != None:
-            strategy_values_list=[]
-            for index, column in enumerate(config_data["imputation_column_name"]):
-                type = config_data["impution_type"][index] 
-                df_value = df[[column]].values
-                
-                if type == "mean":
-                    imputer = SimpleImputer(missing_values = config_data["na_notation"], strategy = "mean")
-                    strategy_values_list.append(df[column].mean())
+            if config_data['drop_column_name'] != [] and (config_data["target_column_name"] not in config_data['drop_column_name']):
+                del config_data['drop_column_name'][0]
+                df=df.drop(config_data["drop_column_name"], axis = 1)
+
+
+            if config_data['imputation_column_name'][0] != []:
+                del config_data['imputation_column_name'][0]
+                del config_data['impution_type'][0]
+                strategy_values_list = []
+
+                for index, column in enumerate(config_data["imputation_column_name"]):
+                    if df[column].dtype == object:
+                        impution_type = "most_frequent"
+                        config_data["impution_type"][index] = "most_frequent"
+                        
+
+                    else:
+                        impution_type = config_data["impution_type"][index] 
+
+                    if impution_type == "mean":
+                        df_value = df[[column]].values
+                        imputer = SimpleImputer(missing_values = np.nan, strategy = "mean")
+                        strategy_values_list.append(df[column].mean())
+                        df[[column]] = imputer.fit_transform(df_value)
+
+                    elif impution_type == "median":
+                        df_value = df[[column]].values
+                        imputer = SimpleImputer(missing_values =  np.nan, strategy = "median")
+                        strategy_values_list.append(df[column].median())
+                        df[[column]] = imputer.fit_transform(df_value)
+
+                    elif impution_type == "most_frequent":
+                        df.fillna(df.select_dtypes(include='object').mode().iloc[0], inplace=True)
+                        strategy_values_list.append(df[column].value_counts().idxmax())
+
+
+                    elif impution_type=='knn':
+                        df_value = df[[column]].values
+                        imputer = KNNImputer(n_neighbors = 4, weights = "uniform",missing_values =  np.nan)
+                        df[[column]] = imputer.fit_transform(df_value)
+
+                if strategy_values_list != []:        
+                    config_data['mean_median_mode_values'] = list(map(str, strategy_values_list))    
+
+            if config_data['scaling_column_name'][0] != []:
+                del config_data['scaling_column_name'][0]
+                del config_data['scaling_type'][0]
+                scaled_value_list = []
+                for index, column in enumerate(config_data["scaling_column_name"]):
+                    if df[column].dtype == object or config_data["target_column_name"] == column:
+                        pass
+                    else:  
+                        scaling_type = config_data["scaling_type"][index]
+                        config_data['scaling_values'] = {}
+                        df_value = df[[column]].values
+
+                        if scaling_type == "normalization":
+                            df_std = (df_value - df_value.min(axis=0)) / (df_value.max(axis=0) - df_value.min(axis=0))
+                            scaled_value = df_std * (1 - 0)
+                            scaled_value_list.append({"min":float(df_value.min(axis=0)),"max":float(df_value.max(axis=0))})
+                            config_data['scaling_values'] = scaled_value_list
+
+                        elif scaling_type == 'standarization':
+                            df_std = (df_value - df_value.min(axis=0)) / (df_value.max(axis=0) - df_value.min(axis=0))
+                            scaled_value = (df_value - df_value.mean()) / df_std 
+                            scaled_value_list.append({"min":float(df_value.min(axis=0)),"max":float(df_value.max(axis=0)),"mean":float(df_value.mean())})
+                            config_data['scaling_values'] = scaled_value_list
+                        
+                        df[[column]] = scaled_value
+
+
+            if config_data['encode_column_name'][0] != []:
+                del config_data['encode_column_name'][0]
+                del config_data['encoding_type'][0]
+                for index, column in enumerate(config_data["encode_column_name"]):
+                    encoding_type = config_data["encoding_type"][index]
+
+                    if df[column].dtype == 'object'and df[column].nunique() > 30:
+                        df.drop(column, axis = 1,inplace=True)
+
+
+                    if config_data["target_column_name"] == column and df[column].dtype == 'object':
+                        config_data["encoding_type"][index] = "Label Encoding"
+                        encoder = LabelEncoder()
+                        df[column] = encoder.fit_transform(df[column])
+                        label_encoding_dict = dict(zip(encoder.classes_, range(len(encoder.classes_))))
+                        config_data['labels'] = label_encoding_dict
+                                            
+                    elif config_data["target_column_name"] == column and df[column].dtype != 'object':
+                        pass
                     
-                elif type == "median":
-                    imputer = SimpleImputer(missing_values = config_data["na_notation"], strategy = "median")
-                    strategy_values_list.append(df[column].median())
-                    
-                elif type == "most_frequent":
-                    imputer = SimpleImputer(missing_values = config_data["na_notation"], strategy = "most_frequent")
-                    strategy_values_list.append(df[column].mode())
+                    elif df[column].dtype != 'object'and df[column].nunique() > 30:
+                        del config_data['encode_column_name'][0]
+                        del config_data['encoding_type'][0]
+                        pass
 
-                elif type=='knn':
-                    imputer = KNNImputer(n_neighbors = 4, weights = "uniform",missing_values = config_data["na_notation"])
-                
-                df[[column]] = imputer.fit_transform(df_value)
-            
-            df.replace(to_replace =[config_data["na_notation"]],value =0)
-            if strategy_values_list != [] :
-                config_data['mean_median_mode_values'] = strategy_values_list
-           
-            
-        else:
-            ## Checkin the z scone and replace it with mean if z < 3 
-            df.replace(to_replace =[config_data["na_notation"]],value =0)
-            ####using others for object type data.
-             
 
-        #feature scaling
-        if config_data['scaling_column_name'][0] != None:
-            for index, column in enumerate(config_data["scaling_column_name"]):
-                type = config_data["scaling_type"][index]
-                config_data['scaling_values'] = {}
-                df_value = df[[column]].values
+                    elif encoding_type == "Label Encoding":
+                        encoder = LabelEncoder()
+                        df[column] = encoder.fit_transform(df[column])
 
-                if type == "normalization":
-                    df_std = (df_value - df_value.min(axis=0)) / (df_value.max(axis=0) - df_value.min(axis=0))
-                    scaled_value = df_std * (1 - 0)
-                    
-                    config_data['scaling_values'][index]={"min":df_value.min(axis=0),"max":df_value.max(axis=0)}
+                    elif encoding_type == "One-Hot Encoding":
+                        encoder = OneHotEncoder(drop = 'first', sparse=False)
+                        df_encoded = pd.DataFrame (encoder.fit_transform(df[[column]]))
+                        df_encoded.columns = encoder.get_feature_names([column])
+                        df.drop([column] ,axis=1, inplace=True)
+                        df= pd.concat([df, df_encoded ], axis=1)
 
-                elif type == 'standarization':
-                    df_std = (df_value - df_value.min(axis=0)) / (df_value.max(axis=0) - df_value.min(axis=0))
-                    scaled_value = (df_value - df.value.mean()) / df_std 
-                    
-                    config_data['scaling_values'][index]={"std":df_std,"mean":df.value.mean()}
-                    
-                df[[column]] = scaled_value
-                
-                
-        #### handling catogarical data
-        # encoding
-        
-        # Under the following if block only the columns selected by the used will be encoded as choosed by the used. 
-        if config_data['encode_column_name'][0] != None:
-            for index, column in enumerate(config_data["encode_column_name"]):
-                type = config_data["encoding_type"][index]
-                    
-                if type == "Label Encodeing":
-                    encoder = LabelEncoder()
-                    df[column] = encoder.fit_transform(df[column])
 
-                    label_encoding_dict = dict(zip(encoder.classes_, range(len(encoder.classes_))))
-                    config_data['labels'] = {}
-                    config_data['labels']= [label_encoding_dict]
+        ### Default
 
-                elif type == "One-Hot Encoding":
-                    encoder = OneHotEncoder(drop = 'first', sparse=False)
-                    df_encoded = pd.DataFrame (encoder.fit_transform(df[[column]]))
-                    df_encoded.columns = encoder.get_feature_names([column])
-                    df.drop([column] ,axis=1, inplace=True)
-                    df= pd.concat([df, df_encoded ], axis=1)
-                    
-            # In case the user missed any column which is object type and need to be encoded will be encoded using OneHot encoding.       
-        
-        objest_type_column_list = []
+        for column in df.columns:
+            if df[column].dtype == 'object'and df[column].nunique() > 30 and config_data["target_column_name"] != column:
+                df.drop(column, axis = 1,inplace=True)
+
+
         for col_name in df.columns:
             if df[col_name].dtype == 'object':
-                objest_type_column_list.append(col_name)
-                config_data['encodeing_type'].extend(['One-Hot Encoding'])
-                
-        if objest_type_column_list != [] :
-            config_data['encode_column_name'] = objest_type_column_list
+                df.replace(to_replace = np.nan ,value ="No data")
+            else:
+                df.replace(to_replace = np.nan ,value =0)
 
-            encoder = OneHotEncoder(drop = 'first', sparse=False)
-            df_encoded = pd.DataFrame (encoder.fit_transform(df[objest_type_column_list]))
-            df_encoded.columns = encoder.get_feature_names([objest_type_column_list])
-            df.drop([objest_type_column_list] ,axis=1, inplace=True)
-            df= pd.concat([df, df_encoded ], axis=1)       
-            
 
-        # Feature engineering & Feature Selection
-        ### Outlier detection & Removel
-        # We are removing the outliers if on the basis on z-score.
+        if df[config_data["target_column_name"]].dtype == 'object':
+            encoder = LabelEncoder()
+            df[config_data["target_column_name"]] = encoder.fit_transform(df[config_data["target_column_name"]])
+            label_encoding_dict = dict(zip(encoder.classes_, range(len(encoder.classes_))))
+            config_data['labels'] = label_encoding_dict
 
+
+        object_type_column_list = []
+        for column in df.columns:
+            if df[column].dtype == 'object':
+                object_type_column_list.append(column)
+                config_data['encode_column_name'].extend([column])
+                config_data['encoding_type'].extend(['One-Hot Encoding'])
+
+        if object_type_column_list != []:
+            for column in object_type_column_list:
+                encoder = OneHotEncoder(drop = 'first', sparse=False)
+                df_encoded = pd.DataFrame (encoder.fit_transform(df[[column]]))
+                df_encoded.columns = encoder.get_feature_names([column])
+                df.drop([column] ,axis=1, inplace=True)
+                df= pd.concat([df, df_encoded ], axis=1)
+
+
+        
         if config_data["Remove_outlier"] == True:
             z = np.abs(stats.zscore(df))
             df = df[(z < 3).all(axis=1)]
-              
-        # Here we are selecting the column which are having more then 70 correlation.
+
         if config_data["feature_selection"] == True:
             col_corr = set()
             corr_matrix = df.corr()
@@ -156,23 +187,17 @@ class Preprocess:
                     for j in range(i):
                         if abs(corr_matrix.iloc[i, j]) > 0.90:
                             col_corr.add(corr_matrix.columns[i])
-                                        
-            df = df.drop(col_corr,axis=1)
-
-            # with the following function we can select highly correlated features
-            # it will remove the first feature that is correlated with anything other feature
-
-        # Droping the columns which are left behind and can cause problem at the time of model training.
-        for col_name in df.columns:
-            if df[col_name].dtype == 'object':
-                df=df.drop(col_name, axis = 1)
-
+                            
+            if config_data["target_column_name"] not in col_corr:
+                df.drop(col_corr,axis=1,inplace=True)
+    
+        print("df3",df)
         df.to_csv('clean_data.csv')
         shutil.move("clean_data.csv",folderLocation)
         clean_data_address = os.path.abspath(os.path.join(folderLocation,"clean_data.csv"))
         config_data['clean_data_address'] = clean_data_address
-    
+
         with open(config, 'w') as yaml_file:
             yaml_file.write( yaml.dump(config_data, default_flow_style=False))
-
+        
         return clean_data_address

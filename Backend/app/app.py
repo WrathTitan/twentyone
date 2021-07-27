@@ -1,7 +1,8 @@
 import os
 import shutil
+from typing import List, Optional
 import yaml
-from fastapi import FastAPI, Form
+from fastapi import FastAPI, Form, Request, WebSocket, WebSocketDisconnect
 from fastapi.datastructures import UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.param_functions import File
@@ -20,14 +21,16 @@ from Backend.app.helpers.project_helper import create_project_id
 from Backend.app.helpers.data_helper import get_clean_data_path
 from Backend.app.helpers.metrics_helper import get_metrics
 from Backend.app.helpers.model_helper import create_model_id, get_pickle_file_path
-from Backend.app.schemas import AutoFormData, TimeseriesFormData, PreprocessJSONFormData
-from Backend.utils import generate_project_folder, generate_project_auto_config_file, generate_project_manual_config_file, generate_project_timeseries_config_file
+from Backend.app.schemas import AutoFormData, Project, TimeseriesFormData, PreprocessJSONFormData, ModelHyperParametersJSON
+from Backend.utils import generate_project_folder, generate_project_auto_config_file, generate_project_manual_config_file, generate_project_timeseries_config_file, convertFile, deleteTempFiles
 from Files.auto import Auto
 from Files.autoreg import AutoReg
 from Files.auto_clustering import Autoclu
 from Files.plot import plot
 from Files.inference import Inference
 from Files.preprocess import Preprocess
+from Files.inference_preprocess import InferencePreprocess
+from Files.training import training
 from Files.timeseries_preprocess import TimeseriesPreprocess
 from Files.timeseries import timeseries
 
@@ -73,7 +76,7 @@ def startup_mongodb_client():
                 "password": "password@Super@Secure",
                 "listOfProjects": []
             })
-        resultsCache.set_auto_mode_status(False)
+        resultsCache.set_training_status(False)
     except Exception as e:
         print("An Error Occured: ",e)
         print("Duplicate Key Error can be ignored safely")
@@ -82,6 +85,12 @@ def startup_mongodb_client():
 @app.on_event("shutdown")
 def shutdown_mongodb_client():
     Project21Database.close()
+
+
+@app.post('/convertFile')
+def converting_uploaded_file(train:UploadFile=File(...)):
+    convertedFilePath, originalFilePath=convertFile(train)
+    return FileResponse(convertedFilePath,media_type="text/csv", filename="convertedFile.csv")
 
 @app.post('/create',tags=["Auto Mode"])
 def create_project(projectName:str=Form(...),mtype:str=Form(...),train: UploadFile=File(...)):
@@ -104,7 +113,10 @@ def create_project(projectName:str=Form(...),mtype:str=Form(...),train: UploadFi
                 "configFileLocation": None,
                 "plotsPath": None,
                 "projectType": mtype,
-                "target":None
+                "target":None,
+                "isAuto": None,
+                "preprocessConfigFileLocation":None,
+                "modelsConfigFileLocation": None
                 })
             # Project21Database.insert_one(settings.DB_COLLECTION_MODEL,{
             #     "modelID": inserted_modelID,
@@ -137,7 +149,9 @@ def create_project(projectName:str=Form(...),mtype:str=Form(...),train: UploadFi
 def start_auto_preprocessing_and_training(autoFormData:AutoFormData):
     autoFormData=dict(autoFormData)
     projectAutoConfigFileLocation, dataID, problem_type = generate_project_auto_config_file(autoFormData["projectID"],currentIDs,autoFormData,Project21Database)
-    resultsCache.set_auto_mode_status(False)
+    with open("logs.log","w") as f:
+        f.close()
+    resultsCache.set_training_status(False)
     if(problem_type=='regression'):
         automatic_model_training=AutoReg()
         Operation=automatic_model_training.auto(projectAutoConfigFileLocation)
@@ -168,12 +182,21 @@ def start_auto_preprocessing_and_training(autoFormData:AutoFormData):
                 "belongsToProjectID": autoFormData["projectID"],
                 "belongsToDataID": dataID
             })
-            Project21Database.insert_one(settings.DB_COLLECTION_METRICS,{
-                "belongsToUserID": autoFormData["userID"],
-                "belongsToProjectID": autoFormData["projectID"],
-                "belongsToModelID": dataID,
-                "addressOfMetricsFile": Operation["metricsLocation"]
-            })
+            if problem_type!='clustering':                
+                Project21Database.insert_one(settings.DB_COLLECTION_METRICS,{
+                    "belongsToUserID": autoFormData["userID"],
+                    "belongsToProjectID": autoFormData["projectID"],
+                    "belongsToModelID": dataID,
+                    "addressOfMetricsFile": Operation["metricsLocation"],
+                    "accuracy": Operation["accuracy"]
+                })
+            else:
+                Project21Database.insert_one(settings.DB_COLLECTION_METRICS,{
+                    "belongsToUserID": autoFormData["userID"],
+                    "belongsToProjectID": autoFormData["projectID"],
+                    "belongsToModelID": dataID,
+                    "addressOfMetricsFile": Operation["metricsLocation"],
+                })
             result=Project21Database.find_one(settings.DB_COLLECTION_PROJECT,{"projectID":autoFormData["projectID"]})
             result=serialiseDict(result)
             if result is not None:
@@ -206,12 +229,18 @@ def start_auto_preprocessing_and_training(autoFormData:AutoFormData):
         except Exception as e:
             print("An Error occured: ",e)
             return JSONResponse({"Auto": "Success", "Database Insertion":"Failure", "Project Collection Updation": "Unsuccessful"})
-        
+        currentIDs.set_current_data_id(dataID)
+        currentIDs.set_current_model_id(dataID)
+        currentIDs.set_current_project_id(autoFormData["projectID"])
+
         resultsCache.set_clean_data_path(Operation["cleanDataPath"])
         resultsCache.set_metrics_path(Operation["metricsLocation"])
         resultsCache.set_pickle_file_path(Operation["pickleFilePath"])
         resultsCache.set_pickle_folder_path(Operation["pickleFolderPath"])
-        resultsCache.set_auto_mode_status(True)
+        resultsCache.set_training_status(True)
+        with open("logs.log","a+") as f:
+            f.write("\nPROJECT21_TRAINING_ENDED\n")
+            f.write("\nPROJECT21_TRAINING_ENDED\n")
         return JSONResponse({"Successful":"True", "userID": currentIDs.get_current_user_id(), "projectID": autoFormData["projectID"], "dataID":dataID, "modelID": dataID})
     else:
         return JSONResponse({"Successful":"False"})
@@ -274,20 +303,49 @@ def get_plots(projectID:int):       #check if it already exists - change locatio
 @app.get('/getAllProjects',tags=["Auto Mode"])
 def get_all_project_details(userID:int):
     listOfProjects=[]
+    listOfAccuracies=[]
     try:   
-        results=Project21Database.find(settings.DB_COLLECTION_PROJECT,{"belongsToUserID":userID})
-        for result in results:
-            result=serialiseDict(result)
-            if result["target"] is not None:
-                projectTemplate={
-                    "projectID": result["projectID"],
-                    "projectName": result["projectName"],
-                    "target": result["target"],
-                    "modelType": result["projectType"],
-                    "listOfDataIDs": result["listOfDataIDs"],
-                    "isAuto": result["isAuto"]
-                }
-                listOfProjects.append(projectTemplate)
+        userProjects=Project21Database.find(settings.DB_COLLECTION_PROJECT,{"belongsToUserID":userID})
+        for project in userProjects:
+            project=serialiseDict(project)
+            if project["projectType"]=='clustering':
+                listOfDataIDs=project["listOfDataIDs"]
+                if project["target"] is not None:
+                    for dataID in listOfDataIDs:
+                        projectMetrics=Project21Database.find_one(settings.DB_COLLECTION_METRICS,{"belongsToModelID":dataID})
+                        if projectMetrics is not None:
+                            projectMetrics=serialiseDict(projectMetrics)
+                    projectTemplate={
+                        "projectID": project["projectID"],
+                        "projectName": project["projectName"],
+                        "target": project["target"],
+                        "modelType": project["projectType"],
+                        "listOfDataIDs": project["listOfDataIDs"],
+                        "isAuto": project["isAuto"],
+                        "accuracies":listOfAccuracies
+                    }
+                    listOfProjects.append(projectTemplate)
+                    listOfAccuracies=[]
+            else:
+                listOfDataIDs=project["listOfDataIDs"]
+                if project["target"] is not None:
+                    for dataID in listOfDataIDs:
+                        projectMetrics=Project21Database.find_one(settings.DB_COLLECTION_METRICS,{"belongsToModelID":dataID})
+                        if projectMetrics is not None:
+                            projectMetrics=serialiseDict(projectMetrics)
+                            if projectMetrics["accuracy"] is not None:
+                                listOfAccuracies.append(projectMetrics["accuracy"])
+                    projectTemplate={
+                        "projectID": project["projectID"],
+                        "projectName": project["projectName"].title(),
+                        "target": project["target"],
+                        "modelType": project["projectType"],
+                        "listOfDataIDs": project["listOfDataIDs"],
+                        "isAuto": project["isAuto"],
+                        "accuracies":listOfAccuracies
+                    }
+                    listOfProjects.append(projectTemplate)
+                    listOfAccuracies=[]
     except Exception as e:
         print("An Error Occured: ",e)
         print("Unable to get all projects")
@@ -349,91 +407,180 @@ def get_preprocessing_parameters():
     yaml_json=yaml.load(open(settings.CONFIG_PREPROCESS_YAML_FILE),Loader=SafeLoader)
     return JSONResponse(yaml_json)
 
-@app.post('/getHyperparams',tags=["Manual Mode"])
-def get_hyper_parameters(preprocessJSONFormData:dict):
+@app.post('/getHyperparams/{userID}/{projectID}',tags=["Manual Mode"])
+def get_hyper_parameters(preprocessJSONFormData:dict, userID:int, projectID:int):
     preprocessJSONFormData=dict(preprocessJSONFormData)
-    # projectManualConfigFileLocation, dataID, problem_type, folderLocation = generate_project_manual_config_file(preprocessJSONFormData["projectID"],preprocessJSONFormData,Project21Database)
-    # TODO: Call function manual preprocess generate the clean data and save it in DB
-    # inferenceObj=Preprocess()
-    # cleanDataPath=inferenceObj.manual_preprocess(projectManualConfigFileLocation, folderLocation)
-    # print(cleanDataPath)
-    # # if(problem_type=='regression'):
-    #     automatic_model_training=AutoReg()
-    #     Operation=automatic_model_training.auto(projectAutoConfigFileLocation)
-    # elif (problem_type=='classification'):
-    #     automatic_model_training=Auto()
-    #     Operation=automatic_model_training.auto(projectAutoConfigFileLocation)
-    # elif (problem_type=='clustering'):
-    #     automatic_model_training=Autoclu()
-    #     Operation=automatic_model_training.auto(projectAutoConfigFileLocation)
-    
-    # if Operation["Successful"]:
-    #     try:
-    #         Project21Database.insert_one(settings.DB_COLLECTION_DATA,{
-    #             "dataID": dataID,
-    #             "cleanDataPath": Operation["cleanDataPath"],
-    #             "target": formData["target"],
-    #             "belongsToUserID": currentIDs.get_current_user_id(),
-    #             "belongsToProjectID": formData["projectID"]
-    #         })
-    #         currentIDs.set_current_data_id(dataID)
-    #         Project21Database.insert_one(settings.DB_COLLECTION_MODEL,{
-    #             "modelID": dataID,
-    #             "modelName": "Default Name",
-    #             "modelType": problem_type,
-    #             "pickleFolderPath": Operation["pickleFolderPath"],
-    #             "pickleFilePath": Operation["pickleFilePath"],
-    #             "belongsToUserID": formData["userID"],
-    #             "belongsToProjectID": formData["projectID"],
-    #             "belongsToDataID": dataID
-    #         })
-    #         Project21Database.insert_one(settings.DB_COLLECTION_METRICS,{
-    #             "belongsToUserID": formData["userID"],
-    #             "belongsToProjectID": formData["projectID"],
-    #             "belongsToModelID": dataID,
-    #             "addressOfMetricsFile": Operation["metricsLocation"]
-    #         })
-    #         result=Project21Database.find_one(settings.DB_COLLECTION_PROJECT,{"projectID":formData["projectID"]})
-    #         result=serialiseDict(result)
-    #         if result is not None:
-    #             if result["listOfDataIDs"] is not None:
-    #                 newListOfDataIDs=result["listOfDataIDs"]
-    #                 newListOfDataIDs.append(dataID)
-    #                 Project21Database.update_one(settings.DB_COLLECTION_PROJECT,{"projectID":result["projectID"]},{
-    #                     "$set":{
-    #                         "listOfDataIDs":newListOfDataIDs,
-    #                         "configFileLocation": projectAutoConfigFileLocation,
-    #                         "isAuto": formData["isauto"],
-    #                         "target": formData["target"]
-    #                         }
-    #                     })
-    #             else:
-    #                 Project21Database.update_one(settings.DB_COLLECTION_PROJECT,{"projectID":result["projectID"]},{
-    #                     "$set":{
-    #                         "listOfDataIDs":[dataID],
-    #                         "configFileLocation": projectAutoConfigFileLocation,
-    #                         "isAuto": formData["isauto"],
-    #                         "target": formData["target"]
-    #                         }
-    #                     })
-    #             if (problem_type=='clustering'):
-    #                 Project21Database.update_one(settings.DB_COLLECTION_PROJECT,{"projectID":result["projectID"]},{
-    #                     "$set":{
-    #                         "clusterPlotLocation":Operation["clusterPlotLocation"]
-    #                     }
-    #                 })
-    #     except Exception as e:
-    #         print("An Error occured: ",e)
-    #         return JSONResponse({"Auto": "Success", "Database Insertion":"Failure", "Project Collection Updation": "Unsuccessful"})
-    #     return JSONResponse({"Successful":"True", "userID": currentIDs.get_current_user_id(), "projectID": preprocessJSONFormData["projectID"], "dataID":dataID, "modelID": dataID})
-    # else:
-    #     return JSONResponse({"Successful":"False"})
-    yaml_json=yaml.load(open(settings.CONFIG_MODEL_YAML_FILE),Loader=SafeLoader)
-    return yaml_json
+    print(preprocessJSONFormData)
+    preprocessConfigFileLocation, manualConfigFileLocation, dataID, problem_type, folderLocation = generate_project_manual_config_file(projectID,preprocessJSONFormData,Project21Database)
+    preprocessObj=Preprocess()
+    cleanDataPath=preprocessObj.manual_preprocess(preprocessConfigFileLocation, folderLocation)
+    print(cleanDataPath)
+    if os.path.exists(cleanDataPath):
+        try:
+            Project21Database.insert_one(settings.DB_COLLECTION_DATA,{
+                "dataID": dataID,
+                "cleanDataPath": cleanDataPath,
+                "target": preprocessJSONFormData["target_column_name"],
+                "belongsToUserID": currentIDs.get_current_user_id(),
+                "belongsToProjectID": projectID
+            })
+        except Exception as e:
+            print("An Error Occured: ",e)
+            print("Could not Insert into Data Collection")
+        try:
+            Project21Database.update_one(settings.DB_COLLECTION_PROJECT,{"projectID":projectID},{
+                "$set":{
+                    "preprocessConfigFileLocation":preprocessConfigFileLocation,
+                    "configFileLocation":manualConfigFileLocation,
+                    "target":preprocessJSONFormData["target_column_name"]
+                }
+            })
+        except Exception as e:
+            print("An Error Occured: ",e)
+            print("Could not Update the Project Collection")
 
-@app.post('/manual',tags=["Manual Mode"])
-def start_manual_training():
-    return JSONResponse({"Working":"True"})
+        yaml_json=yaml.load(open(settings.CONFIG_MODEL_YAML_FILE),Loader=SafeLoader)
+        return yaml_json
+
+@app.post('/manual/{userID}/{projectID}',tags=["Manual Mode"])
+def start_manual_training(userID:int,projectID:int,configModelJSONData:Optional[List]):
+    print(configModelJSONData)
+    with open("logs.log","w") as f:
+        f.close()
+    resultsCache.set_training_status(False)
+    result_project=Project21Database.find_one(settings.DB_COLLECTION_PROJECT,{"projectID":projectID})
+    if result_project is not None:
+        configFileLocation=result_project["configFileLocation"]
+        preprocessConfigFileLocation=result_project["preprocessConfigFileLocation"]
+
+        modelsConfigFileLocation=os.path.join(os.path.dirname(result_project["preprocessConfigFileLocation"]),"userinputconfig.yaml")
+    
+    with open(modelsConfigFileLocation,"w") as f:
+        yaml.dump(configModelJSONData,f)
+        f.close()
+
+    result_data=Project21Database.find_one(settings.DB_COLLECTION_DATA,{"belongsToProjectID":result_project["projectID"]})
+    if result_data is not None:
+        cleanDataPath=result_data["cleanDataPath"]
+        dataID=result_data["dataID"]
+
+    trainingObj=training()
+    Operation = trainingObj.train(modelsConfigFileLocation,configFileLocation,preprocessConfigFileLocation,cleanDataPath) 
+    
+    if Operation["Successful"]:
+            Project21Database.insert_one(settings.DB_COLLECTION_MODEL,{
+                "modelID": dataID,
+                "modelName": "Default Name",
+                "modelType": result_project["projectType"],
+                "pickleFolderPath": Operation["pickleFolderPath"],
+                "pickleFilePath": Operation["pickleFilePath"],
+                "belongsToUserID": userID,
+                "belongsToProjectID": projectID,
+                "belongsToDataID": dataID
+            })
+
+            if result_project["projectType"]!='clustering':                
+                Project21Database.insert_one(settings.DB_COLLECTION_METRICS,{
+                    "belongsToUserID": userID,
+                    "belongsToProjectID": projectID,
+                    "belongsToModelID": dataID,
+                    "addressOfMetricsFile": Operation["metricsLocation"],
+                    "accuracy": Operation["accuracy"]
+                })
+            else:
+                Project21Database.insert_one(settings.DB_COLLECTION_METRICS,{
+                    "belongsToUserID": userID,
+                    "belongsToProjectID": projectID,
+                    "belongsToModelID": dataID,
+                    "addressOfMetricsFile": Operation["metricsLocation"],
+                })
+            if result_project["listOfDataIDs"] is not None:
+                newListOfDataIDs=result_project["listOfDataIDs"]
+                newListOfDataIDs.append(dataID)
+                Project21Database.update_one(settings.DB_COLLECTION_PROJECT,{"projectID":projectID},{
+                    "$set":{
+                        "listOfDataIDs":newListOfDataIDs,
+                        "modelsConfigFileLocation":modelsConfigFileLocation,
+                        "isAuto": False,
+                        }
+                    })
+            else:
+                Project21Database.update_one(settings.DB_COLLECTION_PROJECT,{"projectID":projectID},{
+                    "$set":{
+                        "listOfDataIDs":[dataID],
+                        "modelsConfigFileLocation": modelsConfigFileLocation,
+                        "isAuto": False
+                        }
+                    })
+            if (result_project["projectType"]=='clustering'):
+                Project21Database.update_one(settings.DB_COLLECTION_PROJECT,{"projectID":projectID},{
+                    "$set":{
+                        "clusterPlotLocation":Operation["clusterPlotLocation"]
+                    }
+                })
+    resultsCache.set_training_status(True)
+    with open("logs.log","a+") as f:
+        f.write("\nPROJECT21_TRAINING_ENDED\n")
+        f.write("\nPROJECT21_TRAINING_ENDED\n")
+    return JSONResponse({"Successful":"True", "userID": currentIDs.get_current_user_id(), "projectID": projectID, "dataID":dataID, "modelID": dataID})
+
+
+@app.post('/doManualInference',tags=["Manual Mode"])
+def do_manual_inference(projectID:int=Form(...), modelID:int=Form(...), inferenceDataFile:UploadFile=File(...)):
+    preprocessConfigFileLocation='/'
+    isAuto=False
+    pickleFilePath='/'
+    projectRunPath='/'
+    inferenceCleanDataLocation='/'
+    path='/'
+    newDataPath='/'
+    inferenceDataResultsPath='/'
+    # try:
+    result_project=Project21Database.find_one(settings.DB_COLLECTION_PROJECT,{"projectID":projectID})
+    if result_project is not None:
+        result_project=serialiseDict(result_project)
+        preprocessConfigFileLocation=result_project["preprocessConfigFileLocation"]
+        isAuto=result_project["isAuto"]
+
+    result_model=Project21Database.find_one(settings.DB_COLLECTION_MODEL,{"modelID":modelID,"belongsToProjectID":projectID})
+    if result_model is not None:
+        result_model=serialiseDict(result_model)
+        if result_model["pickleFilePath"] is not None:
+            pickleFilePath=result_model["pickleFilePath"]
+        if result_model["pickleFolderPath"] is not None:
+            projectRunPath=os.path.join(result_model["pickleFolderPath"],os.pardir)
+            path=os.path.join(projectRunPath,"inference_data")
+            if(not os.path.exists(path)):
+                os.makedirs(path)
+            newDataPath=os.path.join(path,'inference_data_original.csv')
+        
+        with open(newDataPath,"wb") as buffer:
+            shutil.copyfileobj(inferenceDataFile.file,buffer)
+
+        print("Performing Preprocessing of the data given")
+        inferencePreprocessObj=InferencePreprocess()
+        inferenceCleanDataLocation=inferencePreprocessObj.inference_preprocess(preprocessConfigFileLocation,path,newDataPath)
+        print("Preprocessing of data is done")
+        print("Performing Inference on the preprocessed inference data")
+        inference=Inference()
+        inferenceDataResultsPath=inference.inference(pickleFilePath,inferenceCleanDataLocation,path,isAuto)
+        print("Inferencing completed")
+
+
+        Project21Database.insert_one(settings.DB_COLLECTION_INFERENCE,{
+            "newData": inferenceCleanDataLocation,
+            "results": inferenceDataResultsPath,
+            "belongsToUserID": currentIDs.get_current_user_id(),
+            "belongsToProjectID": projectID,
+            "belongsToModelID": modelID
+        })
+        if os.path.exists(inferenceDataResultsPath):
+            print({"Metrics Generation":"Successful"})
+            return FileResponse(inferenceDataResultsPath,media_type="text/csv",filename="inference.csv")
+    # except Exception as e:
+    #     print("An Error Occured: ",e)
+    #     print("Could not do any of the above")
+
 
 @app.post('/timeseries',tags=["Timeseries"])
 def timeseries_training(timeseriesFormData: TimeseriesFormData):
@@ -452,7 +599,9 @@ def timeseries_training(timeseriesFormData: TimeseriesFormData):
         })
     except Exception as e:
         print("Could not insert into Data Collection. An Error Occured: ",e)
-
+    with open("logs.log","w") as f:
+        f.close()
+    resultsCache.set_training_status(False)
     timeseriesObj=timeseries()
     Operation=timeseriesObj.createarima(projectConfigFileLocation)
     
@@ -477,7 +626,8 @@ def timeseries_training(timeseriesFormData: TimeseriesFormData):
                 "belongsToUserID": timeseriesFormData["userID"],
                 "belongsToProjectID": timeseriesFormData["projectID"],
                 "belongsToModelID": dataID,
-                "addressOfMetricsFile": Operation["metricsLocation"]
+                "addressOfMetricsFile": Operation["metricsLocation"],
+                "accuracy":Operation["accuracy"]
             })
         except Exception as e:
             print("Could not insert into Metrics Collection. An Error Occured: ",e)
@@ -514,32 +664,173 @@ def timeseries_training(timeseriesFormData: TimeseriesFormData):
                     })
         except Exception as e:
             print("An Error Occured: ",e)
+    resultsCache.set_training_status(True)
+    with open("logs.log","a+") as f:
+        f.write("\nPROJECT21_TRAINING_ENDED\n")
+        f.write("\nPROJECT21_TRAINING_ENDED\n")
     return JSONResponse({"Successful":"True", "userID": currentIDs.get_current_user_id(), "projectID": timeseriesFormData["projectID"], "dataID":dataID, "modelID": dataID})
 
-# @app.websocket("/ws")
-# async def training_status(websocket: WebSocket):
-#     print("Connecting to the Frontend...")
-#     await websocket.accept()
-#     # while (not resultsCache.get_auto_mode_status()):
-#     try:
-#         data={
-#             "Successful":"False",
-#             "Status": "Model Running"
-#         }
-#         if (resultsCache.get_auto_mode_status()):
-#             data={
-#             "Successful":"True",
-#             "Status": "Model Successfully Created",
-#             "userID": currentIDs.get_current_user_id(),
-#             "projectID": currentIDs.get_current_project_id(),
-#             "dataID":currentIDs.get_current_data_id(),
-#             "modelID": currentIDs.get_current_model_id()
-#             }
-#             await websocket.send_json(data)
-#         data2= await websocket.receive_text()  #Can be used to receive data from frontend
-#         print(data2)
-#         await websocket.send_json(data) #Can be used to return data to the frontend
-#     except Exception as e:
-#         print("Error: ",e)
-#         # break
-#     print("Websocket connection closing...")
+
+@app.post('/doTimeseriesInference',tags=["Timeseries"])
+def get_timeseries_inference_results(projectID:int=Form(...),modelID:int=Form(...),inferenceTime:int=Form(...),frequency:str=Form(...)):
+    
+    pickleFilePath='/'
+    path='/'
+    inferenceDataResultsPath='/'
+    # try:
+    result=Project21Database.find_one(settings.DB_COLLECTION_MODEL,{"modelID":modelID,"belongsToProjectID":projectID})
+    if result is not None:
+        result=serialiseDict(result)
+        if result["pickleFilePath"] is not None:
+            pickleFilePath=result["pickleFilePath"]
+        if result["pickleFolderPath"] is not None:
+            projectRunPath=os.path.join(result["pickleFolderPath"],os.pardir)
+            path=os.path.join(projectRunPath,"inference_data")
+            if(not os.path.exists(path)):
+                os.makedirs(path)
+        
+        inference=timeseries()
+        inferenceDataResultsPath=inference.arimainference(pickleFilePath,path,inferenceTime)
+        
+        Project21Database.insert_one(settings.DB_COLLECTION_INFERENCE,{
+            "inferenceTime": inferenceTime,
+            "results": inferenceDataResultsPath,
+            "inferenceFolderPath": path,
+            "belongsToUserID": currentIDs.get_current_user_id(),
+            "belongsToProjectID": projectID,
+            "belongsToModelID": modelID
+        })
+        if os.path.exists(inferenceDataResultsPath):
+            print({"Metrics Generation":"Successful"})
+            return FileResponse(inferenceDataResultsPath,media_type="text/csv",filename="inference.csv")
+    # except Exception as e:
+    #     print("An error occured: ", e)
+    #     print("Unable to find model from model Collection")
+    return JSONResponse({"Metrics Generation":"Failed"})
+
+
+@app.post('/doTimeseriesInferencePlot',tags=["Timeseries"])
+def get_timeseries_inference_plot(projectID:int=Form(...),modelID:int=Form(...),inferenceTime:int=Form(...),frequency:str=Form(...)):
+    try:
+        result=Project21Database.find_one(settings.DB_COLLECTION_INFERENCE,{"belongsToProjectID":projectID,"belongsToModelID":modelID})
+        result_Data=Project21Database.find_one(settings.DB_COLLECTION_DATA,{"belongsToProjectID":projectID,"dataID":modelID})
+        result_Data=serialiseDict(result_Data)
+        if result is not None:
+            result=serialiseDict(result)
+            inferenceFilePath=result["results"]
+            if (os.path.exists(inferenceFilePath)):
+                timeseriesObj=timeseries()
+                plotFilepath=timeseriesObj.plotinference(inferenceFilePath,result["inferenceFolderPath"],result_Data["cleanDataPath"],inferenceTime,frequency)
+                return FileResponse(plotFilepath,media_type="text/html",filename="inference.html")
+            else:
+                return JSONResponse({"Success":"False","Inference Plot":"Not Generated"})
+    except Exception as e:
+        print("An Error Occured: ",e)
+        return JSONResponse({"Success":"False","Inference Plot":"Not Generated"})
+
+
+
+@app.websocket("/websocketStream")
+async def training_status(websocket: WebSocket):
+    def generatorLineLogs(file):
+        """ Yield each line from a file as they are written. """
+        line = ''
+        while True:
+            tmp = file.readline()
+            if tmp is not None:
+                line += tmp
+                if line.endswith("\n"):
+                    yield line
+                    line = ''
+            else:
+                yield ''
+    
+    print("Connecting to the Frontend...")
+    await websocket.accept()
+
+    try:
+        for line in generatorLineLogs(open("logs.log", 'r')):
+            if resultsCache.get_training_status()==True or line=="PROJECT21_TRAINING_ENDED\n":
+                websocket.close("Logs Generating Finished")
+                break
+            await websocket.send_json({"logs":line})
+            # replyFromFrontend=await websocket.receive_text()
+        print("File Reading ended")
+        resultsCache.set_training_status(False)
+        # open("logs.log","w").close()    #Truncating the contents of the log file after the websocket disconnects
+        print("Websocket connection closing...")
+    except WebSocketDisconnect:
+        print("Websocket connection has been disconnected...")
+
+@app.delete('/deleteThisProject/{userID}/{projectID}')
+def delete_entire_project(userID:int,projectID:int):
+    result_user=Project21Database.find_one(settings.DB_COLLECTION_USER,{"userID":userID})
+    if result_user is not None:
+        listOfProjects=result_user["listOfProjects"]
+        try:
+            listOfProjects.remove(projectID)
+            Project21Database.update_one(settings.DB_COLLECTION_USER,{"userID":userID},{"$set":{"listOfProjects":listOfProjects}})
+            print("Successfully removed project from list of user projects")
+        except ValueError:
+            print("ProjectID is not in user's project list.")
+            return JSONResponse({"Success":True,"Project Deletion":"Not Successful","Error":"Project Not In Projects List"})
+    
+    result_project=Project21Database.find_one(settings.DB_COLLECTION_PROJECT,{"projectID":projectID,"belongsToUserID":userID})
+    if result_project is not None:
+        try:
+            projectFolderPath=result_project["projectFolderPath"]
+            # listOfDataIDs=result_project["listOfDataIDs"]
+
+            deletedProjectDatasCount=Project21Database.delete_many(settings.DB_COLLECTION_DATA,{"belongsToUserID":userID,"belongsToProjectID":projectID})
+            print("Deleted Datas from Data Collection Count: ",deletedProjectDatasCount)
+            
+            deletedProjectModelsCount=Project21Database.delete_many(settings.DB_COLLECTION_MODEL,{"belongsToUserID":userID,"belongsToProjectID":projectID})
+            print("Deleted Models from Model Collection Count: ",deletedProjectModelsCount)
+
+            deletedProjectMetricsCount=Project21Database.delete_many(settings.DB_COLLECTION_METRICS,{"belongsToUserID":userID,"belongsToProjectID":projectID})
+            print("Deleted Metrics from Metrics Collection Count: ",deletedProjectMetricsCount)
+
+            deletedProjectInferencesCount=Project21Database.delete_many(settings.DB_COLLECTION_INFERENCE,{"belongsToUserID":userID,"belongsToProjectID":projectID})
+            print("Deleted Inferences from Inference Collection Count: ",deletedProjectInferencesCount)
+
+            Project21Database.delete_one(settings.DB_COLLECTION_PROJECT,{"projectID":projectID})
+
+        except Exception as e:
+            print("An Error Occuered: ",e)
+            print("Could not delete the project related collections from DB")
+        
+        try:
+            shutil.rmtree(projectFolderPath)
+        except OSError as e:
+            print("An Error Occured: ", e)
+            JSONResponse({"Success":True,"DB Deletion":"Successful","Directory Deletion":"Not Successful"})
+    return JSONResponse({"Success":True,"DB Deletion":"Successful","Directory Deletion":"Successful"})
+
+
+@app.delete('/deleteThisRun/{userID}/{projectID}/{dataID}')
+def delete_run_data(userID:int,projectID:int,dataID:int):
+    result_project=Project21Database.find_one(settings.DB_COLLECTION_PROJECT,{"projectID":projectID,"belongsToUserID":userID})
+    if result_project is not None:
+        result_project=serialiseDict(result_project)
+        listOfDataIDs=result_project["listOfDataIDs"]
+        if dataID in listOfDataIDs:
+            try:
+                Project21Database.delete_one(settings.DB_COLLECTION_DATA,{"dataID":dataID})
+                Project21Database.delete_one(settings.DB_COLLECTION_MODEL,{"dataID":dataID})    #because dataID and modelID are the same
+                Project21Database.delete_one(settings.DB_COLLECTION_METRICS,{"belongsToModelID":dataID})    #modelID and dataID are the same
+                Project21Database.delete_one(settings.DB_COLLECTION_INFERENCE,{"belongsToModelID":dataID})  #modelID and dataID are the same
+                listOfDataIDs.remove(dataID)
+                Project21Database.update_one(settings.DB_COLLECTION_PROJECT,{"projectID":projectID},{"$set":{"listOfDataIDs":listOfDataIDs}})
+                print("Deleted Data, Model, Metrics, Inference associated with this run successfully.")
+                return JSONResponse({"Success":True,"Run Deleted":"Successfully"})
+            except Exception as e:
+                print("An Error Occured: ",e)
+                print("Unable to delete the associated data, model, metrics and inference of this project's run")
+                JSONResponse({"Success":False,"Run Deleted":"Unsuccessfully","Error":e})
+        else:
+            print("This run could not be found in the list of dataIDs of the project")
+            print("Removal of run unsuccessful")
+            return JSONResponse({"Success":False,"Run Deleted":"Unsuccessfully","Error":"No such run exists in the project's list of dataIDs"})
+        print("Project not found in DB")
+        return(JSONResponse({"Success":False,"Run Deleted":"Unsuccessfully","Error":"No such project exists in the DB"}))
+        
