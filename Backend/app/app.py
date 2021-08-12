@@ -1,7 +1,10 @@
 import os
+import re
 import shutil
 from typing import List, Optional
+from pymongo.errors import InvalidDocument
 import yaml
+import numpy as np
 from fastapi import FastAPI, Form, Request, WebSocket, WebSocketDisconnect
 from fastapi.datastructures import UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -22,7 +25,7 @@ from Backend.app.helpers.data_helper import get_clean_data_path
 from Backend.app.helpers.metrics_helper import get_metrics
 from Backend.app.helpers.model_helper import create_model_id, get_pickle_file_path
 from Backend.app.schemas import AutoFormData, Project, TimeseriesFormData, PreprocessJSONFormData, ModelHyperParametersJSON
-from Backend.utils import generate_project_folder, generate_project_auto_config_file, generate_project_manual_config_file, generate_project_timeseries_config_file, convertFile, deleteTempFiles
+from Backend.utils import generate_project_folder, generate_project_auto_config_file, generate_project_manual_config_file, generate_project_timeseries_config_file, convertFile, deleteTempFiles, generate_random_id, encodeDictionary
 from Files.auto import Auto
 from Files.autoreg import AutoReg
 from Files.auto_clustering import Autoclu
@@ -107,11 +110,13 @@ def create_project(projectName:str=Form(...),mtype:str=Form(...),train: UploadFi
                 "projectID":inserted_projectID,
                 "projectName":projectName,
                 "rawDataPath":Operation["RawDataPath"],
+                "yDataAddress":None,
                 "projectFolderPath":Operation["ProjectFolderPath"],
                 "belongsToUserID": currentIDs.get_current_user_id(),
                 "listOfDataIDs":[],
                 "configFileLocation": None,
                 "plotsPath": None,
+                "edaPlotPath": None,
                 "projectType": mtype,
                 "target":None,
                 "isAuto": None,
@@ -161,27 +166,44 @@ def start_auto_preprocessing_and_training(autoFormData:AutoFormData):
     elif (problem_type=='clustering'):
         automatic_model_training=Autoclu()
         Operation=automatic_model_training.auto(projectAutoConfigFileLocation)
-        
+
     if Operation["Successful"]:
+        try:
+            print("Hyperparams: ",Operation["hyperparams"])
+            newHyperparams=encodeDictionary(Operation["hyperparams"])
+            print("New Hyperparams: ",newHyperparams)
+            print("Y Data Address: ", Operation["y_data"])
+        except Exception as e:
+            print("Some error above: ",e)
         try:
             Project21Database.insert_one(settings.DB_COLLECTION_DATA,{
                 "dataID": dataID,
                 "cleanDataPath": Operation["cleanDataPath"],
+                "yDataAddress": Operation["y_data"],
                 "target": autoFormData["target"],
                 "belongsToUserID": currentIDs.get_current_user_id(),
                 "belongsToProjectID": autoFormData["projectID"]
             })
             currentIDs.set_current_data_id(dataID)
+        except Exception as e:
+            print("An Error Occured: ",e)
+            print("Could not insert into Data Collection")
+        try:
             Project21Database.insert_one(settings.DB_COLLECTION_MODEL,{
                 "modelID": dataID,
                 "modelName": "Default Name",
                 "modelType": problem_type,
                 "pickleFolderPath": Operation["pickleFolderPath"],
                 "pickleFilePath": Operation["pickleFilePath"],
+                "hyperparams": newHyperparams,
                 "belongsToUserID": autoFormData["userID"],
                 "belongsToProjectID": autoFormData["projectID"],
                 "belongsToDataID": dataID
             })
+        except Exception as e:
+            print("An Error Occured: ",e)
+            print("Could not insert into Model DB")
+        try:
             if problem_type!='clustering':                
                 Project21Database.insert_one(settings.DB_COLLECTION_METRICS,{
                     "belongsToUserID": autoFormData["userID"],
@@ -228,6 +250,7 @@ def start_auto_preprocessing_and_training(autoFormData:AutoFormData):
                     })
         except Exception as e:
             print("An Error occured: ",e)
+            print({"Auto": "Success", "Database Insertion":"Failure", "Project Collection Updation": "Unsuccessful"})
             return JSONResponse({"Auto": "Success", "Database Insertion":"Failure", "Project Collection Updation": "Unsuccessful"})
         currentIDs.set_current_data_id(dataID)
         currentIDs.set_current_model_id(dataID)
@@ -241,7 +264,14 @@ def start_auto_preprocessing_and_training(autoFormData:AutoFormData):
         with open("logs.log","a+") as f:
             f.write("\nPROJECT21_TRAINING_ENDED\n")
             f.write("\nPROJECT21_TRAINING_ENDED\n")
-        return JSONResponse({"Successful":"True", "userID": currentIDs.get_current_user_id(), "projectID": autoFormData["projectID"], "dataID":dataID, "modelID": dataID})
+        return JSONResponse({
+            "Successful":"True",
+            "userID": currentIDs.get_current_user_id(),
+            "projectID": autoFormData["projectID"],
+            "dataID":dataID,
+            "modelID": dataID,
+            "hyperparams":newHyperparams
+        })
     else:
         return JSONResponse({"Successful":"False"})
 
@@ -273,19 +303,35 @@ def download_pickle_file(modelID:int):
 #     return StreamingResponse(myfile,media_type="text/csv")    #for streaming files instead of uploading them
 
 
-@app.get('/getPlots/{projectID}',tags=["Auto Mode"])        #To-DO: make the plots appear in each sub directory and see the config file according to the userID, projectID and dataID given
-def get_plots(projectID:int):       #check if it already exists - change location address
+@app.get('/getPlots/{projectID}',tags=["Auto Mode"])
+def get_plots(projectID:int):
     try:
         result=Project21Database.find_one(settings.DB_COLLECTION_PROJECT,{"projectID":projectID})
         if result is not None:
             result=serialiseDict(result)
             if (result["projectType"]=='clustering'):
-                return FileResponse(result["clusterPlotLocation"],media_type="text/html",filename="plot.html")
-            if(result["projectType"]=='timeseries'):
+                    return FileResponse(result["clusterPlotLocation"],media_type="text/html",filename="plot.html")
+            if (result["projectType"]=='timeseries'):
                 return FileResponse(result["plotLocation"],media_type="text/html",filename="plot.html")
             
-            if result["configFileLocation"] is not None:
-                plotFilePath=plot(result["configFileLocation"]) #plot function requires the auto config file
+            if result["isAuto"]:
+                result_model=Project21Database.find_one(settings.DB_COLLECTION_MODEL,{"belongsToProjectID":projectID})
+                if result_model is not None:
+                    result_model=serialiseDict(result_model)
+                    pickleFilePath=result_model["pickleFilePath"]
+
+                result_data=Project21Database.find_one(settings.DB_COLLECTION_DATA,{"belongsToProjectID":projectID})
+                if result_data is not None:
+                    result_data=serialiseDict(result_data)
+                    cleanDataPath=result_data["cleanDataPath"]
+                    yDataAddress=result_data["yDataAddress"]
+                
+                if result["projectType"]=='classification':
+                    auto_mode=Auto()
+                    plotFilePath=auto_mode.model_plot_classification(pickleFilePath,cleanDataPath,yDataAddress,result["projectFolderPath"])
+                elif result["projectType"]=='regression':
+                    auto_mode=AutoReg()
+                    plotFilePath=auto_mode.model_plot_regression(pickleFilePath,cleanDataPath,yDataAddress,result["projectFolderPath"])
                 try:
                     Project21Database.update_one(settings.DB_COLLECTION_PROJECT,{"projectID":projectID},{
                         "$set": {
@@ -295,6 +341,53 @@ def get_plots(projectID:int):       #check if it already exists - change locatio
                 except Exception as e:
                     print("An Error occured while storing the plot path into the project collection")
                 return FileResponse(plotFilePath,media_type='text/html',filename='plot.html')
+            else:
+                result_model=Project21Database.find_one(settings.DB_COLLECTION_MODEL,{"belongsToProjectID":projectID})
+                if result_model is not None:
+                    result_model=serialiseDict(result_model)
+                    pickleFilePath=result_model["pickleFilePath"]
+
+                result_data=Project21Database.find_one(settings.DB_COLLECTION_DATA,{"belongsToProjectID":projectID})
+                if result_data is not None:
+                    result_data=serialiseDict(result_data)
+                    cleanDataPath=result_data["cleanDataPath"]
+
+                manual_mode=training()
+                plotFilePath=manual_mode.model_plot(pickleFilePath,cleanDataPath,result["target"],result["projectFolderPath"])
+                
+                try:
+                    Project21Database.update_one(settings.DB_COLLECTION_PROJECT,{"projectID":projectID},{
+                        "$set": {
+                            "plotsPath": plotFilePath
+                        }
+                    })
+                    return FileResponse(plotFilePath,media_type="text/html",filename="plot.html")
+                except Exception as e:
+                    print("An Error occured while storing the plot path into the project collection")
+                return FileResponse(plotFilePath,media_type='text/html',filename='plot.html')
+    except Exception as e:
+        print("An Error Occured: ",e)
+        return JSONResponse({"Plots": "Not generated"})
+
+@app.get('/getEDAPlot/{projectID}')
+def get_EDA_plot(projectID:int):
+    try:
+        result=Project21Database.find_one(settings.DB_COLLECTION_PROJECT,{"projectID":projectID})
+        if result is not None:
+            result=serialiseDict(result)
+            if result["edaPlotPath"] is not None:
+                return FileResponse(result["edaPlotPath"],media_type="text/html",filename="plot.html")
+            else:
+                plotFilePath=plot(result["rawDataPath"],result["projectFolderPath"])
+                try:
+                    Project21Database.update_one(settings.DB_COLLECTION_PROJECT,{"projectID":projectID},{
+                        "$set": {
+                            "edaPlotPath": plotFilePath
+                        }
+                    })
+                    return FileResponse(plotFilePath,media_type="text/html",filename="plot.html")
+                except Exception as e:
+                    print("An Error Occured: ",e)
     except Exception as e:
         print("An Error Occured: ",e)
         return JSONResponse({"Plots": "Not generated"})
@@ -304,6 +397,7 @@ def get_plots(projectID:int):       #check if it already exists - change locatio
 def get_all_project_details(userID:int):
     listOfProjects=[]
     listOfAccuracies=[]
+    listOfHyperparams=[]
     try:   
         userProjects=Project21Database.find(settings.DB_COLLECTION_PROJECT,{"belongsToUserID":userID})
         for project in userProjects:
@@ -312,9 +406,10 @@ def get_all_project_details(userID:int):
                 listOfDataIDs=project["listOfDataIDs"]
                 if project["target"] is not None:
                     for dataID in listOfDataIDs:
-                        projectMetrics=Project21Database.find_one(settings.DB_COLLECTION_METRICS,{"belongsToModelID":dataID})
-                        if projectMetrics is not None:
-                            projectMetrics=serialiseDict(projectMetrics)
+                        project_model=Project21Database.find_one(settings.DB_COLLECTION_MODEL,{"belongsToUserID":userID,"belongsToDataID":dataID})
+                        if project_model["hyperparams"] is not None:
+                            hyperparams=project_model["hyperparams"]
+                            listOfHyperparams.append(hyperparams)
                     projectTemplate={
                         "projectID": project["projectID"],
                         "projectName": project["projectName"],
@@ -322,14 +417,21 @@ def get_all_project_details(userID:int):
                         "modelType": project["projectType"],
                         "listOfDataIDs": project["listOfDataIDs"],
                         "isAuto": project["isAuto"],
-                        "accuracies":listOfAccuracies
+                        "accuracies":listOfAccuracies,
+                        "listofHyperparams":listOfHyperparams
                     }
                     listOfProjects.append(projectTemplate)
                     listOfAccuracies=[]
+                    listOfHyperparams=[]
             else:
                 listOfDataIDs=project["listOfDataIDs"]
                 if project["target"] is not None:
                     for dataID in listOfDataIDs:
+                        projectModel=Project21Database.find_one(settings.DB_COLLECTION_MODEL,{"belongsToDataID":dataID})
+                        if projectModel is not None:
+                            projectModel=serialiseDict(projectModel)
+                            if projectModel["hyperparams"] is not None:
+                                listOfHyperparams.append(projectModel["hyperparams"])
                         projectMetrics=Project21Database.find_one(settings.DB_COLLECTION_METRICS,{"belongsToModelID":dataID})
                         if projectMetrics is not None:
                             projectMetrics=serialiseDict(projectMetrics)
@@ -342,10 +444,12 @@ def get_all_project_details(userID:int):
                         "modelType": project["projectType"],
                         "listOfDataIDs": project["listOfDataIDs"],
                         "isAuto": project["isAuto"],
-                        "accuracies":listOfAccuracies
+                        "accuracies":listOfAccuracies,
+                        "listOfHyperparams":listOfHyperparams
                     }
                     listOfProjects.append(projectTemplate)
                     listOfAccuracies=[]
+                    listOfHyperparams=[]
     except Exception as e:
         print("An Error Occured: ",e)
         print("Unable to get all projects")
@@ -466,24 +570,26 @@ def start_manual_training(userID:int,projectID:int,configModelJSONData:Optional[
 
     trainingObj=training()
     Operation = trainingObj.train(modelsConfigFileLocation,configFileLocation,preprocessConfigFileLocation,cleanDataPath) 
-    
+    modelID=generate_random_id()
+    print("Hyperparameters: ",Operation["hyperparams"])
     if Operation["Successful"]:
             Project21Database.insert_one(settings.DB_COLLECTION_MODEL,{
-                "modelID": dataID,
+                "modelID": modelID,
                 "modelName": "Default Name",
                 "modelType": result_project["projectType"],
                 "pickleFolderPath": Operation["pickleFolderPath"],
                 "pickleFilePath": Operation["pickleFilePath"],
                 "belongsToUserID": userID,
                 "belongsToProjectID": projectID,
-                "belongsToDataID": dataID
+                "belongsToDataID": dataID,
+                "hyperparms": Operation["hyperparams"]
             })
 
             if result_project["projectType"]!='clustering':                
                 Project21Database.insert_one(settings.DB_COLLECTION_METRICS,{
                     "belongsToUserID": userID,
                     "belongsToProjectID": projectID,
-                    "belongsToModelID": dataID,
+                    "belongsToModelID": modelID,
                     "addressOfMetricsFile": Operation["metricsLocation"],
                     "accuracy": Operation["accuracy"]
                 })
@@ -491,8 +597,8 @@ def start_manual_training(userID:int,projectID:int,configModelJSONData:Optional[
                 Project21Database.insert_one(settings.DB_COLLECTION_METRICS,{
                     "belongsToUserID": userID,
                     "belongsToProjectID": projectID,
-                    "belongsToModelID": dataID,
-                    "addressOfMetricsFile": Operation["metricsLocation"],
+                    "belongsToModelID": modelID,
+                    "addressOfMetricsFile": Operation["metricsLocation"]
                 })
             if result_project["listOfDataIDs"] is not None:
                 newListOfDataIDs=result_project["listOfDataIDs"]
@@ -522,7 +628,7 @@ def start_manual_training(userID:int,projectID:int,configModelJSONData:Optional[
     with open("logs.log","a+") as f:
         f.write("\nPROJECT21_TRAINING_ENDED\n")
         f.write("\nPROJECT21_TRAINING_ENDED\n")
-    return JSONResponse({"Successful":"True", "userID": currentIDs.get_current_user_id(), "projectID": projectID, "dataID":dataID, "modelID": dataID})
+    return JSONResponse({"Successful":"True", "userID": currentIDs.get_current_user_id(), "projectID": projectID, "dataID":dataID, "modelID": modelID, "hyperparams":Operation["hyperparams"]})
 
 
 @app.post('/doManualInference',tags=["Manual Mode"])
@@ -587,6 +693,13 @@ def timeseries_training(timeseriesFormData: TimeseriesFormData):
     print(timeseriesFormData)
     timeseriesFormData=dict(timeseriesFormData)
     projectConfigFileLocation, projectFolderPath, dataID, projectType = generate_project_timeseries_config_file(timeseriesFormData["projectID"],currentIDs,timeseriesFormData,Project21Database)
+    with open("logs.log","w") as f:
+        f.write("Time series Initiated\n")
+        f.write("Please wait setting up...\n")
+        f.write("Setting up Completed...\n")
+        f.write("Preprocessing the given data\n")
+        f.write("Preprocessing is done\n")
+        f.close()
     timeseriesPreprocessObj=TimeseriesPreprocess()
     cleanDataPath=timeseriesPreprocessObj.preprocess(projectConfigFileLocation,projectFolderPath)
     try:
@@ -599,7 +712,11 @@ def timeseries_training(timeseriesFormData: TimeseriesFormData):
         })
     except Exception as e:
         print("Could not insert into Data Collection. An Error Occured: ",e)
-    with open("logs.log","w") as f:
+    
+    with open("logs.log","a+") as f:
+        f.write("Starting training on different models\n")
+        f.write("Please wait setting up...\n")
+        f.write("Setting up Completed...\n")
         f.close()
     resultsCache.set_training_status(False)
     timeseriesObj=timeseries()
@@ -833,4 +950,45 @@ def delete_run_data(userID:int,projectID:int,dataID:int):
             return JSONResponse({"Success":False,"Run Deleted":"Unsuccessfully","Error":"No such run exists in the project's list of dataIDs"})
         print("Project not found in DB")
         return(JSONResponse({"Success":False,"Run Deleted":"Unsuccessfully","Error":"No such project exists in the DB"}))
-        
+
+    
+# @app.get('/sampleDatas')
+# def get_sample_data():
+#     def getListOfTestDataFiles(dirName):
+#         listOfFiles = os.listdir(dirName)
+#         allFiles = []
+#         for path in listOfFiles:
+#             fullPath = os.path.join(dirName, path)
+#             if os.path.isdir(fullPath):
+#                 allFiles = allFiles + getListOfTestDataFiles(fullPath)
+#             else:
+#                 allFiles.append(fullPath)
+#         return allFiles
+
+#     sampleDatas=[]
+#     for item in getListOfTestDataFiles(settings.SAMPLE_DATASET_FOLDER):
+#         sampleDataTemplate={
+#             "filename": os.path.basename(item),
+#             "filepath": item
+#         }
+#         sampleDatas.append(sampleDataTemplate)
+
+#     return sampleDatas
+
+@app.get('/sampleData')
+def get_sample_data_file(filename:str):
+    switcher = {
+        'Iris': settings.SAMPLE_DATASET_CLASSIFICATION,
+        'Cardata': settings.SAMPLE_DATASET_REGRESSION,
+        'Icecream': settings.SAMPLE_DATASET_TIMESERIES,
+        'Jewellery': settings.SAMPLE_DATASET_CLUSTERING
+    }
+    filepath=switcher.get(filename,"nofile")
+    if os.path.isfile(filepath):
+        try:
+            return FileResponse(filepath,media_type="text/csv", filename="sampleDataset.csv")
+        except Exception as e:
+            print("An Error Occured: ",e)
+            return JSONResponse({"Success": False})
+    else:
+        return JSONResponse({"Success":False})

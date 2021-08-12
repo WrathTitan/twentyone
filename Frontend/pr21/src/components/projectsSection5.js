@@ -1,12 +1,8 @@
 import React, { Component } from 'react';
 import $ from 'jquery';
 import Plots from './plots.js';
-// import DownloadLink from "react-download-link";
-// import { CSVLink } from "react-csv";
-// import car from '../assets/testDataset/cardata.csv';
 import Download from './download.js';
 import Metrics from './metrics.js';
-// import Papa from 'papaparse';
 import axios from 'axios';
 import Papa from 'papaparse';
 class ProjectsSection5 extends Component {
@@ -16,7 +12,6 @@ class ProjectsSection5 extends Component {
     constructor() {
         super();
         this.state = {
-            // csvfile: undefined,
             data: "",
             inferencefile: undefined,
             plot: "",
@@ -70,8 +65,6 @@ class ProjectsSection5 extends Component {
                     alert("File is big so it is downloaded");
                 }
             });
-
-
     }
     handlePlot = event => {
         const FileDownload = require('js-file-download');
@@ -126,7 +119,7 @@ class ProjectsSection5 extends Component {
 
         );
         const FileDownload = require('js-file-download');
-        if (this.props.isauto === 'Auto')
+        if (this.props.isauto === true)
             axios.post('http://localhost:8000/doInference', formdata, { headers: { 'Accept': 'multipart/form-data', 'Content-Type': 'multipart/form-data' } })
                 .then((res) => {
                     console.log("Successful Auto inference", res)
@@ -187,16 +180,31 @@ class ProjectsSection5 extends Component {
     }
 
     render() {
+        var b =String(Object.values(this.props.hyperparams[this.props.currentmodel-1]));
+        var a =Object.keys(this.props.hyperparams[this.props.currentmodel-1]);
+        b=b.split(",")
         return (
 
             <div className="section5 " id="projectsection5">
+                <div id="mySidenav" class="sidenav">
+
+                    <h5>Hyperparameters</h5>
+
+                    {a.map((data,i) => (
+                        <div>
+                            
+                        <p>{data} = {b[i]===""?"null":b[i]}</p>
+                        </div>
+                    ))}
+                    
+                </div>
                 <div className="goback">
                     <button className="backbtn btn btn-secondary" onClick={this.handleGoBack}  > &larr; Models </button>
 
                 </div>
 
                 <div className="sec5heading">
-                    <h1>Results (Model Number:  {this.props.currentmodel})</h1>
+                    <h1>Results </h1>
                 </div>
 
 
@@ -208,7 +216,7 @@ class ProjectsSection5 extends Component {
                                 {this.props.projectdetails.modelType === "clustering" ? "Alloted Clusters" : "Metrics"}</button>
                         </li>
                         <li className="nav-item" role="presentation">
-                            <button className="nav-link tabbtn " id="plot-tab" onClick={this.handlePlot} data-bs-toggle="tab" data-bs-target="#plot" type="button" role="tab" aria-controls="Plot" aria-selected="false">Plots</button>
+                            <button className="nav-link tabbtn " id="plot-tab" onClick={this.handlePlot} data-bs-toggle="tab" data-bs-target="#plot" type="button" role="tab" aria-controls="Plot" aria-selected="false">EDA Plots</button>
                         </li>
                         <li className="nav-item" role="presentation">
                             <button className="nav-link tabbtn" id="download-tab" data-bs-toggle="tab" data-bs-target="#download" type="button" role="tab" aria-controls="Download" aria-selected="false">Download</button>

@@ -12,6 +12,7 @@ import Section7 from './section7.js';
 // import Section5 from './section5.js';
 // import Section6 from './section6.js';
 import ShowdataModal from './showdataModal.js';
+import ShowPlotModal from './showPlotModal.js';
 import Papa from 'papaparse';
 
 class Home extends Component {
@@ -34,7 +35,9 @@ class Home extends Component {
                 "dataID": 0,
                 "modelID": 0,
                 "projectID": 0,
-                "userID": 0
+                "userID": 0,
+                "Accuracy":0,
+                "hyperparams":0
             },
             projectdetail: {
                 "projectID": 0,
@@ -47,10 +50,14 @@ class Home extends Component {
             modelForm: "",
             numClusters: 4,
             modalShow: false,
+            modalShow2: false,
             openWebSocketConnection: false,
+            plot: "",
+            address:"",
         }
         this.updateData = this.updateData.bind(this);
     }
+    
     handleProjectNameChange = event => {
         this.setState({
             projectname: event.target.value
@@ -62,7 +69,7 @@ class Home extends Component {
             "train",
             event.target.files[0]
         );
-        axios.post('http://localhost:8000/convertFile', formdata, { headers: { 'Accept': 'multipart/form-data', 'Content-Type': 'multipart/form-data' } })
+        axios.post('http://'+this.state.address+':8000/convertFile', formdata, { headers: { 'Accept': 'multipart/form-data', 'Content-Type': 'multipart/form-data' } })
             .then((response) => {
                 console.log("Successful1", response);
                 Papa.parse(response.data, {
@@ -132,7 +139,7 @@ class Home extends Component {
 
         // console.log(this.state.traindata)
 
-        axios.post('http://localhost:8000/create', formdata, { headers: { 'Accept': 'multipart/form-data', 'Content-Type': 'multipart/form-data' } })
+        axios.post('http://'+this.state.address+':8000/create', formdata, { headers: { 'Accept': 'multipart/form-data', 'Content-Type': 'multipart/form-data' } })
             .then((res) => {
                 console.log("Successful1", res);
                 this.setState({
@@ -156,7 +163,7 @@ class Home extends Component {
             auto: false
         })
 
-        axios.get('http://localhost:8000/getPreprocessParam')
+        axios.get('http://'+this.state.address+':8000/getPreprocessParam')
             .then((response) => {
                 console.log(response);
                 this.setState({
@@ -251,7 +258,7 @@ class Home extends Component {
             let data = { userID, projectID, isauto, target, modelnumber, nulltype, clusteringType, numClusters }
             console.log(JSON.stringify(data))
 
-            axios.post('http://localhost:8000/auto', JSON.stringify(data))
+            axios.post('http://'+this.state.address+':8000/auto', JSON.stringify(data))
                 .then(res => {
                     console.log("Successful2", res)
                     this.setState({
@@ -270,7 +277,7 @@ class Home extends Component {
             this.setState({
                 openWebSocketConnection: true
             })
-        }, 1000);
+        }, 2000);
 
     }
 
@@ -316,7 +323,7 @@ class Home extends Component {
             let data = { userID, projectID, target, dateColumn, frequency }
             console.log(JSON.stringify(data))
 
-            axios.post('http://localhost:8000/timeseries', JSON.stringify(data))
+            axios.post('http://'+this.state.address+':8000/timeseries', JSON.stringify(data))
                 .then(res => {
                     console.log("SuccessfulTime", res)
                     this.setState({
@@ -324,7 +331,7 @@ class Home extends Component {
                     })
                     console.log(this.state.modeldetail)
                     this.setState({
-                        openWebSocketConnection: false
+                        openWebSocketConnection: true
                     })
                 },
                     (error) => { console.log(error) });
@@ -366,27 +373,41 @@ class Home extends Component {
             modalShow: true
         })
     }
+    handleShowPlot = event => {
+        var projectid = this.state.projectdetail.projectID
+        console.log(projectid)
+        const FileDownload = require('js-file-download');
+        axios.get('http://'+this.state.address+':8000/getEDAPlot/' + projectid)
+            .then((response) => {
+                console.log(response)
+                this.setState({ plot: response.data });
+                var answer = window.confirm("Plots are ready and displayed. Want to Download in a file?");
+                if (answer) {
+                    FileDownload(response.data, 'plot.html');
+                }
+                else {
+                    console.log("plots not downloaded")
+                }
+            });
+
+        this.setState({
+            modalShow2: true
+        })
+    }
     handleNewProject() {
         window.location.reload();
-        // var theFormItself = document.getElementById('form2');
-        // $(theFormItself).hide();
-        // var theFormItself2 = document.getElementById('form3');
-        // $(theFormItself2).hide();
-        // var theFormItself3 = document.getElementById('form4');
-        // $(theFormItself3).hide();
-        // var theFormItself4 = document.getElementById('form5');
-        // $(theFormItself4).hide();
-        // var theFormItself5 = document.getElementById('loader');
-        // $(theFormItself5).hide();
-        // var theFormItself6 = document.getElementById('section6');
-        // $(theFormItself6).hide();
-        // var theFormItself7 = document.getElementById('section5');
-        // $(theFormItself7).hide()
-        // var theFormItself9 = document.getElementById('form6');
-        // $(theFormItself9).hide();
-        // var theFormItself8 = document.getElementById('form1');
-        // $(theFormItself8).show();
-
+        // console.log(process.env)
+    }
+    componentDidMount(){
+        let add=""
+        if(process.env.REACT_APP_BACKEND_CONTAINER_NAME)
+            add=process.env.REACT_APP_BACKEND_CONTAINER_NAME
+        else
+            add="localhost"
+        console.log(add)
+        this.setState({
+            address: add
+        })
     }
 
     render() {
@@ -500,11 +521,16 @@ class Home extends Component {
                         <div className="goback">
                             <button className="btn btn-primary backbtn " onClick={this.handleGoForm2}  > &larr; Back </button>
                             <button className="btn btn-primary sampleData" id="sampleData" onClick={this.handleSampleData}>See Sample Data</button>
+                            <button className="btn btn-primary Eda" id="EDA" onClick={this.handleShowPlot}>See EDA Plot</button>
                             < ShowdataModal
                                 show={this.state.modalShow}
                                 onHide={() => this.setState({ modalShow: false })}
                                 rawdata={this.state.traindata}
                             />
+                            <ShowPlotModal
+                                show={this.state.modalShow2}
+                                onHide={() => this.setState({ modalShow2: false })}
+                                plot={this.state.plot} />
                         </div>
                         <form onSubmit={this.handleSubmit2}>
                             <div className="createform">
@@ -549,7 +575,7 @@ class Home extends Component {
                                                 <label htmlFor="num_clusters">Number of clusters <span className="ibtn">i <span id="idesc">K=4 works good most of times</span></span></label>
                                             </div>
                                             <div className="col-60" >
-                                                <input type="number" id="num_clusters" name="num_clusters" onChange={this.handleCLusterNumberChange} placeholder="Enter K" />
+                                                <input type="number" id="num_clusters" name="num_clusters" onChange={this.handleCLusterNumberChange} placeholder="Enter K" required />
                                             </div>
                                         </div>
                                     </div>
@@ -587,7 +613,7 @@ class Home extends Component {
                         projectdetail={this.state.modeldetail}
                         handler={this.handleCurrentModel}
                         projectname={this.state.projectname}
-                        isauto={this.state.isauto}
+                        isauto={this.state.auto}
                         mtype={this.state.mtype}
                         openWebSocketConnection={this.state.openWebSocketConnection} />
                     {/* ************************************************************************************************************************ */}
@@ -632,6 +658,7 @@ class Home extends Component {
                     <div className="container" id="form6">
                         <div className="goback">
                             <button className="btn btn-primary sampleData" id="sampleData" onClick={this.handleSampleData}>See Sample Data</button>
+                            <button className="btn btn-primary Eda" id="EDA" onClick={this.handleShowPlot}>See EDA Plot</button>
                         </div>
                         <form onSubmit={this.handleSubmitTime}>
                             <div className="createform">

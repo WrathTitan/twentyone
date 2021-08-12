@@ -128,7 +128,8 @@ class Section5 extends Component {
 
         );
         const FileDownload = require('js-file-download');
-        if (this.props.isauto === 'Auto')
+        console.log(this.props.isauto)
+        if (this.props.isauto === true)
             axios.post('http://localhost:8000/doInference', formdata, { headers: { 'Accept': 'multipart/form-data', 'Content-Type': 'multipart/form-data' } })
                 .then((res) => {
                     console.log("Successful", res)
@@ -190,6 +191,11 @@ class Section5 extends Component {
         return (
 
             <div className="section5 " id="section5">
+                 <div id="mySidenav" class="sidenav">
+                    <h5>Hyperparameters</h5>
+                    {/* <p>{this.props.hyperparameters</p> */}
+                    <p>Work in progress...</p>
+                </div>
                 <div className="goback">
                     <button className="backbtn btn btn-secondary" onClick={this.handleGoBack}  > &larr; Models </button>
                     {this.props.showRetrain === false ? null :
@@ -202,7 +208,7 @@ class Section5 extends Component {
 
 
                 <div className="sec5heading">
-                    <h1>Results (Model Number:  {this.props.currentmodel})</h1>
+                    <h1>Results</h1>
                 </div>
 
 

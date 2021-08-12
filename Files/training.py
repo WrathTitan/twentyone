@@ -8,6 +8,10 @@ from .libraries import *
 import yaml
 from Files.hyperparameter import hyperparameter as hp
 import os 
+import pickle
+import random
+import plotly.express as px
+import plotly.graph_objects as go
 
 class training:
 
@@ -24,20 +28,21 @@ class training:
             userinputconfigfile=yaml.load(file,Loader=FullLoader) #modified version of model universe for each run
         models=[]
         ans=[]
+        hyperparams={}
 
         test_ratio=preprocessconfigfile["split_ratio_test"] #input given the the user usually 0.3 by default
 
         # data=dataconfigfile["clean_data"] 
-        data=cleanDataPath
+        datapath=cleanDataPath
 
         target_column=preprocessconfigfile["target_column_name"]
         
         
         if dataconfigfile["problem_type"]=='classification':
-            metrics=pd.DataFrame(columns = ['modelname','accuracy_score','recall_score','precision_score','f1_score','cohen_kappa_score','matthews_corrcoef'])
+            metrics=pd.DataFrame(columns = ['modelname','Accuracy','Recall','Prec.','F1','Kappa'])
 
         elif dataconfigfile["problem_type"]=='regression':
-            metrics=pd.DataFrame(columns=['modelname','mean_absolute_error','mean_squared_error','r2_score','mean_squared_log_error'])
+            metrics=pd.DataFrame(columns=['modelname','MAE','MSE',"RMSE",'R2','RMSLE',"AUC"])
         #create location of pickle file
         picklelocation=os.path.join(dataconfigfile["location"],str(dataconfigfile["id"])+"_model")
         os.makedirs(picklelocation)
@@ -53,7 +58,7 @@ class training:
                         hypers.append(feature["name"]+"="+ str(feature["value"]))
                 model_str=model["name"] + "(" + ", ".join(hypers) + ")"
 
-                metricsnewrow=hp.optimize(model_str,model["name"],userinputconfig,data,dataconfig,target_column)
+                metricsnewrow, hyperparams=hp.optimize(model_str,model["name"],userinputconfig,datapath,dataconfig,target_column,hyperparams)
                 print(metricsnewrow)
                 metrics.loc[len(metrics.index)]=metricsnewrow
                 
@@ -74,12 +79,32 @@ class training:
         best_model=metrics['Model'][0]
         best_model_location=os.path.join(picklelocation,(str(best_model) +".pkl"))
         
-        
+        hyper=hyperparams[best_model]
         return {
             "Successful":True,
             "metricsLocation":metricsLocation,
             "pickleFolderPath": picklelocation,         #Generate a folder where all pickle files are residing
             "pickleFilePath": best_model_location,             #Best model pickle file path
-            "accuracy":accuracy,                          #Accuracy of best model
-            "clusterPlotLocation": "clusterPlotLocation"    #Only if it is clustering
+            "accuracy":accuracy,                         #Accuracy of best model
+            "cleanDataPath":cleanDataPath,
+            "clusterPlotLocation": "clusterPlotLocation",    #Only if it is clustering
+            "hyperparams":hyper
         }
+
+    def model_plot(self,pickleFileLocation,cleandatapath,target_column,plotLocation):
+        clf=pickle.load(open(pickleFileLocation,"rb"))
+        data=pd.read_csv(cleandatapath)
+        y=data[target_column]
+        data.drop([target_column],inplace=True,axis=1)
+        x=data
+        y_pred=clf.predict(x)
+        fig = go.Figure()
+        ran=random.randint(100,999)
+        fig.add_trace(go.Scatter(x=x.index,y=y,name="actual"))
+        fig.add_trace(go.Scatter(x=x.index,y=y_pred,name="predictions"))
+        
+        plotlocation=os.path.join(plotLocation,"plot.html")
+        with open(plotlocation, 'a') as f:
+            f.write(fig.to_html(include_plotlyjs='cdn',full_html=False))
+        f.close()
+        return plotlocation
